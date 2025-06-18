@@ -1,0 +1,262 @@
+/* --- CÀI ĐẶT CHUNG & FONT --- */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body, html {
+    height: 100%;
+    font-family: 'Lato', sans-serif;
+}
+
+/* --- HÌNH NỀN & LỚP PHỦ --- */
+.bg-img {
+    /* Thay bằng URL ảnh nền của bạn */
+    background-image: linear-gradient(rgba(29, 38, 113, 0.6), rgba(19, 5, 54, 0.7)), url('https://images.unsplash.com/photo-1594282484651-39512636a39b?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1974&q=80');
+    min-height: 100vh;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: cover;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+}
+
+/* --- KHUNG NỘI DUNG CHÍNH (HIỆU ỨNG KÍNH MỜ) --- */
+.content {
+    width: 100%;
+    max-width: 800px; /* Giới hạn chiều rộng tối đa */
+    background: rgba(255, 255, 255, 0.1); /* Màu nền bán trong suốt */
+    backdrop-filter: blur(10px); /* Hiệu ứng làm mờ nền */
+    -webkit-backdrop-filter: blur(10px); /* Hỗ trợ trình duyệt Safari */
+    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    padding: 40px 50px;
+    color: white;
+}
+
+.index-main {
+    display: flex;
+    flex-direction: column;
+    gap: 30px; /* Khoảng cách giữa các phần tử con */
+}
+
+/* --- TIÊU ĐỀ --- */
+.header-content h1 {
+    font-size: 2.8rem;
+    font-weight: 700;
+    text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.5);
+    margin-bottom: 10px;
+}
+
+.header-content-text {
+    background: -webkit-linear-gradient(45deg, #49a09d, #5f2c82);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background: linear-gradient(45deg, #a8ff78, #78ffd6);
+    background-clip: text;
+    text-fill-color: transparent;
+}
+
+/* --- KHU VỰC UPLOAD --- */
+.upload-section {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+/* --- STYLING FORMS --- */
+.file-form, .link-form {
+    display: flex;
+    width: 100%;
+    gap: 10px;
+}
+
+/* --- STYLING INPUTS --- */
+.file-form-input, .link-form-input {
+    flex-grow: 1; /* Cho phép input co giãn chiếm hết không gian còn lại */
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    background-color: rgba(255, 255, 255, 0.9);
+    color: #333;
+    font-size: 16px;
+    transition: all 0.3s ease;
+}
+
+.file-form-input {
+    color: #555; /* Màu chữ 'No file chosen' */
+}
+
+.link-form-input::placeholder {
+    color: #888;
+}
+
+.file-form-input:focus, .link-form-input:focus {
+    outline: none;
+    border-color: #28a745;
+    box-shadow: 0 0 0 3px rgba(40, 167, 69, 0.3);
+}
+
+/* Styling nút chọn file trong input type="file" */
+.file-form-input::file-selector-button {
+    background-color: #5f6f81;
+    color: white;
+    padding: 10px 15px;
+    border: none;
+    border-radius: 5px;
+    font-weight: bold;
+    cursor: pointer;
+    margin-right: 10px;
+    transition: background-color 0.2s ease;
+}
+
+.file-form-input::file-selector-button:hover {
+    background-color: #788a9e;
+}
+
+
+/* --- STYLING BUTTONS --- */
+.btn.btn-success {
+    padding: 15px 30px;
+    font-size: 16px;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.btn.btn-success:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+}
+
+.btn.btn-success:active {
+    transform: translateY(-1px);
+    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15);
+}
+
+
+/* --- DẤU PHÂN CÁCH "HOẶC" --- */
+.uploadOR {
+    display: flex;
+    align-items: center;
+    text-align: center;
+    color: rgba(255, 255, 255, 0.8);
+    font-weight: bold;
+}
+
+.uploadOR::before, .uploadOR::after {
+    content: '';
+    flex: 1;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+.uploadOR:not(:empty)::before {
+    margin-right: .5em;
+}
+
+.uploadOR:not(:empty)::after {
+    margin-left: .5em;
+}
+
+
+/* --- THÔNG BÁO LỖI VÀ FOOTER --- */
+.header-content-sub {
+    text-align: center;
+}
+
+.header-content-info {
+    font-size: 1rem;
+    line-height: 1.6;
+}
+
+p.header-content-info[style*="color: red"] {
+    background-color: rgba(255, 0, 0, 0.2);
+    border: 1px solid rgba(255, 0, 0, 0.5);
+    padding: 10px;
+    border-radius: 5px;
+    font-weight: bold;
+}
+
+.footer {
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+    padding-top: 20px;
+    margin-top: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.footer p[style*="color:orange"] {
+    font-style: italic;
+    font-family: 'Courier New', Courier, monospace;
+    background-color: rgba(0, 0, 0, 0.2);
+    padding: 8px;
+    border-radius: 5px;
+}
+
+
+/* --- RESPONSIVE DESIGN CHO THIẾT BỊ DI ĐỘNG --- */
+@media (max-width: 768px) {
+    .content {
+        padding: 30px 25px;
+    }
+
+    .header-content h1 {
+        font-size: 2.2rem;
+    }
+
+    .file-form, .link-form {
+        flex-direction: column; /* Xếp chồng input và button lên nhau */
+    }
+
+    .btn.btn-success {
+        width: 100%; /* Button chiếm toàn bộ chiều rộng */
+    }
+}
+/* --- START OF FILE static/css/style.css --- */
+
+body, html {
+    height: 100%;
+    margin: 0;
+    font-family: 'Lato', sans-serif;
+}
+
+/* Lớp chứa ảnh nền */
+.bg-img {
+    /* Thay đổi 'background.jpg' thành tên file ảnh của bạn */
+    background-image: url("../css/background.jpg");
+
+    /* Đảm bảo div cao bằng toàn màn hình */
+    min-height: 100vh;
+
+    /* Căn giữa và co giãn ảnh để lấp đầy không gian mà không bị méo */
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: cover;
+
+    /* Cần thiết để định vị nội dung bên trong */
+    position: relative;
+}
+
+/* Lớp chứa nội dung chính, giúp căn giữa */
+.content {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 80%;
+    max-width: 700px; /* Giới hạn chiều rộng tối đa */
+    padding: 20px;
+    background: rgba(0, 0, 0, 0.5); /* Thêm nền đen mờ để chữ dễ đọc hơn */
+    border-radius: 10px;
+}

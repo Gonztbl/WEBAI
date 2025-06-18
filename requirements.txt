@@ -1,0 +1,16 @@
+# Core framework for machine learning
+tensorflow
+
+# For image processing
+Pillow
+opencv-python
+
+# For creating the web application
+Flask
+
+# For numerical operations and plotting
+numpy
+matplotlib
+scikit-learn
+imutils
+webcolors

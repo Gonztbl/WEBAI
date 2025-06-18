@@ -1,0 +1,118 @@
+<!-- success.html: Giao diện nâng cấp -->
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kết quả phân tích toàn diện</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
+</head>
+<body class="bg-light">
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+    <div class="container">
+        <a class="navbar-brand" href="/">Phân Tích Trái Cây AI</a>
+    </div>
+</nav>
+
+<div class="container mt-5">
+    <h1 class="text-center mb-4">Kết Quả Phân Tích Toàn Diện</h1>
+    <div class="row g-4">
+        <div class="col-lg-7">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header fw-bold">Hiển thị 2 ảnh: Gốc + Bounding Box & Phân tích màu</div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6 text-center">
+                            <p><strong>1. Ảnh gốc + Bounding Box</strong></p>
+                            <img src="{{ url_for('static', filename='images/' + yolo_img) }}" class="img-fluid rounded shadow">
+                        </div>
+                        <div class="col-md-6 text-center">
+                            <p><strong>2. Ảnh phân tích màu chủ đạo</strong></p>
+                            <img src="{{ url_for('static', filename='images/' + img) }}" class="img-fluid rounded shadow">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-5">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-success text-white fw-bold">
+                    <i class="fas fa-brain"></i> Dự Đoán (PyTorch)
+                </div>
+                <div class="card-body text-center">
+                    <h4>{{ predictions.pytorch_prediction }}</h4>
+                    <div class="progress" style="height: 30px;">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated bg-info" role="progressbar" style="width: {{ predictions.pytorch_confidence }}%;">
+                            <strong>{{ predictions.pytorch_confidence | round(2) }}%</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card shadow-sm mb-4">
+                <div class="card-header"><i class="fas fa-palette"></i> Đánh giá độ chín (phân tích màu)</div>
+                <div class="card-body text-center">
+                    <p class="fs-5">{{ predictions.color_ripeness }}</p>
+                </div>
+            </div>
+
+            <div class="card shadow-sm">
+                <div class="card-header"><i class="fas fa-heartbeat"></i> Dự đoán tươi/hỏng (Keras)</div>
+                <ul class="list-group list-group-flush">
+                    <li class="list-group-item d-flex justify-content-between">
+                        {{ predictions.freshness_class1 }} <span class="badge bg-primary">{{ predictions.freshness_prob1 }}%</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between">
+                        {{ predictions.freshness_class2 }} <span class="badge bg-secondary">{{ predictions.freshness_prob2 }}%</span>
+                    </li>
+                    <li class="list-group-item d-flex justify-content-between">
+                        {{ predictions.freshness_class3 }} <span class="badge bg-secondary">{{ predictions.freshness_prob3 }}%</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    <div class="text-center mt-4">
+        <a href="/" class="btn btn-lg btn-outline-primary"><i class="fas fa-redo"></i> Thử lại</a>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    const ctx = document.createElement("canvas");
+    document.querySelector(".container").appendChild(ctx);
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: [
+                "{{ predictions.freshness_class1 }}",
+                "{{ predictions.freshness_class2 }}",
+                "{{ predictions.freshness_class3 }}"
+            ],
+            datasets: [{
+                label: "Tỷ lệ dự đoán Keras",
+                data: [
+                    {{ predictions.freshness_prob1 }},
+                    {{ predictions.freshness_prob2 }},
+                    {{ predictions.freshness_prob3 }}
+                ],
+                backgroundColor: ['#007bff', '#6c757d', '#6c757d']
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { display: false },
+                title: { display: true, text: 'Biểu đồ xác suất tươi/hỏng (Keras)' }
+            },
+            scales: {
+                y: { beginAtZero: true, max: 100 }
+            }
+        }
+    });
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

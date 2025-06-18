@@ -1,0 +1,5 @@
+train: ./yolo_dataset/images/train
+val: ./yolo_dataset/images/val
+
+nc: 6
+names: ['fresh_apple', 'fresh_banana', 'fresh_orange', 'rotten_apple', 'rotten_banana', 'rotten_orange']

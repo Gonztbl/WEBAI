@@ -1,0 +1,15 @@
+# Bỏ qua thư mục ảnh lớn
+Fruit_Classification_Data/
+yolo_dataset/
+autolabels/
+fruit_detection_results/
+
+# Bỏ các file tạm
+__pycache__/
+*.pyc
+*.pyo
+*.~*
+.idea/
+*.pt
+*.pth
+*.png
