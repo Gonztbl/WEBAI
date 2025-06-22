@@ -18,7 +18,7 @@ CONFIG = {
     "IMG_WIDTH": 224,
     "IMG_HEIGHT": 224,
     "BATCH_SIZE": 32,
-    "EPOCHS": 25,  # Có thể tăng lên vì đã có EarlyStopping
+    "EPOCHS": 15,  # Có thể tăng lên vì đã có EarlyStopping
     "LEARNING_RATE": 0.0001,
     "DATASET_DIR": 'dataset',
     "MODEL_SAVE_PATH": 'model/fruit_state_classifier.keras',  # Lưu ở định dạng .keras
@@ -51,7 +51,7 @@ def create_data_generators():
     train_generator = train_datagen.flow_from_directory(
         train_dir,
         target_size=(224, 224),
-        batch_size=32,
+        batch_size=CONFIG["BATCH_SIZE"],
         class_mode='categorical',
         subset='training'
     )
@@ -59,12 +59,12 @@ def create_data_generators():
     validation_generator = train_datagen.flow_from_directory(
         train_dir,
         target_size=(224, 224),
-        batch_size=32,
+        batch_size=CONFIG["BATCH_SIZE"],
         class_mode='categorical',
         subset='validation'
     )
 
-    # Lưu lại class_indices
+    # ✅ Lưu class_indices trước khi return
     class_indices = train_generator.class_indices
     class_indices_rev = {v: k for k, v in class_indices.items()}
     with open(CONFIG["CLASS_INDICES_PATH"], 'w') as f:
@@ -73,15 +73,6 @@ def create_data_generators():
 
     return train_generator, validation_generator
 
-    # Lưu lại class_indices
-    class_indices = train_generator.class_indices
-    # Đảo ngược key và value để dễ tra cứu từ index -> tên lớp
-    class_indices_rev = {v: k for k, v in class_indices.items()}
-    with open(CONFIG["CLASS_INDICES_PATH"], 'w') as f:
-        json.dump(class_indices_rev, f, indent=4)
-    print(f"Đã lưu class indices vào: {CONFIG['CLASS_INDICES_PATH']}")
-
-    return train_generator, validation_generator
 
 
 # ====================================================================
