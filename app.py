@@ -131,7 +131,7 @@ def process_image_from_link(link):
             image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
             filename = f"{uuid.uuid4()}.jpg"
             saved_path = IMAGES_DIR/filename
-            image.save(saved_path)
+            image.save(str(save_path))
             return str(saved_path), None
     except Exception as e:
         logger.error(f"Error processing image link: {e}")
@@ -166,7 +166,7 @@ def draw_yolo_bounding_box(image_path, bounding_box):
         
         saved_name = f"{uuid.uuid4()}_yolo.jpg"
         save_path = IMAGES_DIR/saved_name
-        image.save(save_path)
+        image.save(str(save_path))
         return saved_name
     except Exception as e:
         logger.error(f"Error drawing bounding box: {e}")
