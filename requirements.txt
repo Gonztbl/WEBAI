@@ -10,22 +10,9 @@ imutils==0.5.4
 # === Machine Learning ===
 torch==2.1.0
 torchvision==0.16.0
-# Web Framework
-flask
-werkzeug
-
-# AI & Machine Learning
-torch
-torchvision
 tensorflow==2.10.0
 ultralytics
 scikit-learn
 
-# Image & CV
-opencv-python
-Pillow
-imutils
-webcolors
-
-# Utilities
+# === Utilities ===
 numpy<2
