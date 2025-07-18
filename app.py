@@ -66,7 +66,7 @@ def verify_models():
 
 def load_models():
     """Load các model với xử lý lỗi chi tiết"""
-    models = {}
+    loaded_models = {}
     
     try:
         logger.info("Loading Keras model...")
