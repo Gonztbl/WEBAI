@@ -30,25 +30,11 @@ RUN mkdir -p model && \
     cd model && \
     for model in fruit_state_classifier.keras yolo11n.pt fruit_ripeness_model_pytorch.pth; do \
         echo "Downloading ${model}..."; \
-        for i in {1..3}; do \
-            wget -q --show-progress --progress=bar:force:noscroll \
-            "${MODEL_URL}/${model}" && break || \
-            { echo "Retry $i/3"; sleep 2; rm -f "${model}"; } \
-        done && \
-        [ -s "${model}" ] || { echo "ERROR: File empty"; exit 1; } && \
-        case "${model}" in \
-            "fruit_state_classifier.keras") checksum="a1b2c3d4e5f6...";; \
-            "yolo11n.pt") checksum="x9y8z7...";; \
-            "fruit_ripeness_model_pytorch.pth") checksum="p0o9i8...";; \
-        esac && \
-        (echo "${checksum} ${model}" | md5sum -c --strict - || \
-            { echo "Checksum failed"; rm -f "${model}"; exit 1; }) \
+        wget -q --show-progress --progress=bar:force:noscroll \
+        "https://github.com/Gonztbl/WEBAI/releases/download/v.1.1/${model}" && \
+        [ -s "${model}" ] || { echo "ERROR: Model file ${model} is empty or missing"; exit 1; } \
     done && \
-    # Clean potential duplicates
-    rm -f *.1 *.2 && \
-    echo "Model verification passed:" && \
-    ls -lh
-
+    rm -f *.1 *.2  # Xóa file trùng lặp nếu có
 # 5. Create directories for static files
 RUN mkdir -p static/images && \
     chmod -R a+rwx static
