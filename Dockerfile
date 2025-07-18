@@ -30,7 +30,7 @@ RUN mkdir -p model && \
     done && \
     echo "Model files verification:" && \
     ls -lh && \
-    file fruit_state_classifier.keras yolo11n.pt
+    
 
 # 6. Tạo thư mục lưu ảnh
 RUN mkdir -p static/images
