@@ -31,7 +31,8 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 # ===== CẤU HÌNH ĐƯỜNG DẪN =====
 BASE_DIR = Path(__file__).parent
-IMAGES_DIR = BASE_DIR/'static'/'images'
+IMAGES_DIR = Path("/tmp/images")
+IMAGES_DIR.mkdir(parents=True, exist_ok=True)
 MODEL_DIR = BASE_DIR/'model'
 
 # Tạo thư mục nếu chưa tồn tại
