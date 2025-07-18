@@ -67,39 +67,40 @@ def verify_models():
 def load_models():
     """Load các model với xử lý lỗi chi tiết"""
     loaded_models = {}
-    
+
     try:
         logger.info("Loading Keras model...")
-        models['classifier'] = load_model(str(CLASSIFIER_MODEL_PATH))
+        loaded_models['classifier'] = load_model(str(CLASSIFIER_MODEL_PATH))
         logger.info("Keras model loaded successfully")
     except Exception as e:
         logger.error(f"Failed to load Keras model: {e}")
         raise
-    
+
     try:
         logger.info("Loading YOLO model...")
-        models['detector'] = YOLO(str(DETECTOR_MODEL_PATH))
+        loaded_models['detector'] = YOLO(str(DETECTOR_MODEL_PATH))
         logger.info("YOLO model loaded successfully")
     except Exception as e:
         logger.error(f"Failed to load YOLO model: {e}")
         raise
-    
+
     try:
         logger.info("Loading PyTorch model...")
         model = models.mobilenet_v2(weights=None)
         num_ftrs = model.classifier[1].in_features
         model.classifier = nn.Sequential(
-            nn.Dropout(p=0.2), 
+            nn.Dropout(p=0.2),
             nn.Linear(num_ftrs, NUM_PYTORCH_CLASSES)
         )
         model.load_state_dict(torch.load(str(RIPENESS_MODEL_PATH), map_location=device))
-        models['ripeness'] = model.to(device).eval()
+        loaded_models['ripeness'] = model.to(device).eval()
         logger.info("PyTorch model loaded successfully")
     except Exception as e:
         logger.error(f"Failed to load PyTorch model: {e}")
         raise
-    
-    return models
+
+    return loaded_models
+
 
 # Khởi tạo ứng dụng
 try:
