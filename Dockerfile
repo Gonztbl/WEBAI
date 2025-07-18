@@ -25,21 +25,25 @@ RUN pip install --upgrade pip && \
 # 3. Copy application code
 COPY . .
 
-# 4. Download and VERIFY model files with checksums
+# 4. Download and VERIFY model files with checksums (Robust Method)
 RUN mkdir -p model && \
     cd model && \
     \
-    echo "Downloading and verifying fruit_state_classifier.keras..." && \
+    echo "Downloading fruit_state_classifier.keras..." && \
     wget -q "${MODEL_URL}/fruit_state_classifier.keras" && \
-    echo "8ebe13c100c32f99911eb341e6b6278832a8848c909675239a587428803a6b5a3  fruit_state_classifier.keras" | sha256sum -c - && \
     \
-    echo "Downloading and verifying yolo11n.pt..." && \
+    echo "Downloading yolo11n.pt..." && \
     wget -q "${MODEL_URL}/yolo11n.pt" && \
-    echo "0ebbc80d4a7680d14987a577cd213c415555462589574163013a241e3d30925e  yolo11n.pt" | sha256sum -c - && \
     \
-    echo "Downloading and verifying fruit_ripeness_model_pytorch.pth..." && \
+    echo "Downloading fruit_ripeness_model_pytorch.pth..." && \
     wget -q "${MODEL_URL}/fruit_ripeness_model_pytorch.pth" && \
-    echo "48bf9333f4f07af2d02e3965f797f53f06b6b553e414c99736e4f165a6e87b7a6  fruit_ripeness_model_pytorch.pth" | sha256sum -c -
+    \
+    echo "Verifying all checksums..." && \
+    sha256sum -c --strict <<EOF
+8ebe13c100c32f99911eb341e6b6278832a8848c909675239a587428803a6b5a3  fruit_state_classifier.keras
+0ebbc80d4a7680d14987a577cd213c415555462589574163013a241e3d30925e  yolo11n.pt
+48bf9333f4f07af2d02e3965f797f53f06b6b553e414c99736e4f165a6e87b7a6  fruit_ripeness_model_pytorch.pth
+EOF
 
 # 5. Create directories for static files
 RUN mkdir -p static/images && \
