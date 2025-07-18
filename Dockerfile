@@ -20,7 +20,7 @@ RUN wget -O model/fruit_state_classifier.keras "https://github.com/Gonztbl/WEBAI
 RUN wget -O model/yolo11n.pt "https://github.com/Gonztbl/WEBAI/releases/download/v.1.1/yolo11n.pt"
 RUN wget -O model/fruit_ripeness_model_pytorch.pth "https://github.com/Gonztbl/WEBAI/releases/download/v.1.1/fruit_ripeness_model_pytorch.pth"
 
-# Bước 7: Cài đặt các thư viện Python (sẽ cài opencv-python-headless từ requirements.txt)
+# Bước 7: Cài đặt các thư viện Python từ requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Bước 8: Mở cổng 10000
