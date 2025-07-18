@@ -231,7 +231,7 @@ def success():
             if allowed_file(file.filename):
                 filename = f"{uuid.uuid4()}_{secure_filename(file.filename)}"
                 img_path = IMAGES_DIR/filename
-                file.save(img_path)
+                image.save(str(save_path))
             else:
                 error = "Định dạng ảnh không hợp lệ"
         else:
