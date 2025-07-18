@@ -20,7 +20,7 @@ ultralytics
 # TensorFlow cho mô hình phân loại .keras
 # QUAN TRỌNG: Phiên bản này yêu cầu Python 3.10
 tensorflow==2.10.0
-
+scikit-learn
 # === Utilities ===
 # Thư viện tính toán khoa học
 numpy<2.0
