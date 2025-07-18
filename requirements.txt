@@ -7,7 +7,6 @@ Werkzeug==2.3.7
 Pillow==10.0.1
 opencv-python-headless==4.8.1.78
 imutils
-# Thư viện mới từ dominant_color.py
 webcolors
 
 # === Machine Learning ===
@@ -15,7 +14,6 @@ torch==2.1.0
 torchvision==0.16.0
 ultralytics
 tensorflow-cpu==2.10.0
-# các gói khác
 scikit-learn
 
 # === Utilities ===
