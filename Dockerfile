@@ -4,28 +4,28 @@ FROM python:3.10-slim
 # Bước 2: Thiết lập thư mục làm việc bên trong container
 WORKDIR /app
 
-# Bước 3: Cập nhật và cài đặt git và git-lfs (lệnh này sẽ hoạt động trong Docker!)
+# Bước 3: Cập nhật và cài đặt git và git-lfs 
+# (Đây là những gì chúng ta thực sự cần)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends git git-lfs && \
-    # Dọn dẹp để giữ kích thước ảnh nhỏ
     rm -rf /var/lib/apt/lists/*
 
-# Bước 4: Sao chép các tệp cấu hình git để tối ưu hóa cache của Docker
-COPY .git .git
-COPY .gitattributes .gitattributes
-
-# Bước 5: Lệnh quan trọng - Kéo các tệp lớn từ Git LFS
-RUN git lfs pull
-
-# Bước 6: Sao chép toàn bộ mã nguồn ứng dụng của bạn vào
+# Bước 4: Sao chép TOÀN BỘ mã nguồn của bạn vào trong container
+# Thay vì sao chép từng phần, chúng ta sao chép tất cả ngay bây giờ.
 COPY . .
 
-# Bước 7: Cài đặt các thư viện Python
+# Bước 5: Khởi tạo Git LFS và tải về các tệp lớn
+# Lệnh 'git lfs install' sẽ tạo tệp .gitattributes nếu nó chưa tồn tại.
+# Lệnh 'git lfs pull' sẽ tải các mô hình của bạn về.
+RUN git lfs install && \
+    git lfs pull
+
+# Bước 6: Cài đặt các thư viện Python
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Bước 8: Mở cổng 10000 (cổng tiêu chuẩn của Render)
+# Bước 7: Mở cổng 10000 (cổng tiêu chuẩn của Render)
 EXPOSE 10000
 
-# Bước 9: Định nghĩa lệnh để khởi chạy ứng dụng của bạn
-# Lệnh này sẽ thay thế cho "Start Command" trên Render
+# Bước 8: Định nghĩa lệnh để khởi chạy ứng dụng của bạn
+# Render sẽ sử dụng lệnh này để chạy ứng dụng của bạn.
 CMD ["gunicorn", "--bind", "0.0.0.0:10000", "--workers", "4", "app:app"]
