@@ -37,7 +37,8 @@ MODEL_DIR = BASE_DIR/'model'
 
 # Tạo thư mục nếu chưa tồn tại
 IMAGES_DIR.mkdir(parents=True, exist_ok=True)
-MODEL_DIR.mkdir(parents=True, exist_ok=True)
+
+
 
 # Đường dẫn model
 CLASSIFIER_MODEL_PATH = MODEL_DIR/'fruit_state_classifier.keras'
