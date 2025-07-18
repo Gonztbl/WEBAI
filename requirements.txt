@@ -1,16 +1,31 @@
-# Core framework for machine learning
-tensorflow
+# === Web Framework ===
+Flask==2.3.3
+Werkzeug==2.3.7
 
-# For image processing
-Pillow
-opencv-python
+# === Image Processing ===
+Pillow==10.0.1
+opencv-python==4.8.1.78
+imutils==0.5.4
 
-# For creating the web application
-Flask
+# === Machine Learning ===
+torch==2.1.0
+torchvision==0.16.0
+# Web Framework
+flask
+werkzeug
 
-# For numerical operations and plotting
-numpy
-matplotlib
+# AI & Machine Learning
+torch
+torchvision
+tensorflow==2.10.0
+ultralytics
 scikit-learn
+
+# Image & CV
+opencv-python
+Pillow
 imutils
 webcolors
+
+# Utilities
+numpy<2
