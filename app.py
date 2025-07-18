@@ -21,7 +21,17 @@ os.makedirs(IMAGES_DIR, exist_ok=True)
 
 # Cho phép định dạng ảnh
 ALLOWED_EXT = {'jpg', 'jpeg', 'png', 'jfif'}
+# Debug đường dẫn
+print("\n=== DEBUG PATH ===")
+print("Current working directory:", os.getcwd())
+print("Contents of current directory:")
+print(os.listdir('.'))
+print("\nContents of model directory:")
+print(os.listdir('./model') if os.path.exists('./model') else "Model directory not found")
 
+CLASSIFIER_MODEL_PATH = './model/fruit_state_classifier.keras'  # Đảm bảo đường dẫn đúng
+print("\nModel path:", CLASSIFIER_MODEL_PATH)
+print("File exists:", os.path.exists(CLASSIFIER_MODEL_PATH))
 # Đường dẫn model
 CLASSIFIER_MODEL_PATH = os.path.join(BASE_DIR, 'model', 'fruit_state_classifier.keras')
 DETECTOR_MODEL_PATH = os.path.join(BASE_DIR, 'model', 'yolo11n.pt')
