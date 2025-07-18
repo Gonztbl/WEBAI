@@ -15,7 +15,7 @@ COPY . .
 # Bước 5: Tạo thư mục model
 RUN mkdir -p model
 
-# Bước 6: Tải trực tiếp các tệp mô hình lớn bằng wget - ĐÃ SỬA LẠI LINK ĐÚNG
+# Bước 6: Tải trực tiếp các tệp mô hình lớn từ GitHub Releases
 RUN wget -O model/fruit_state_classifier.keras "https://github.com/Gonztbl/WEBAI/releases/download/v.1.1/fruit_state_classifier.keras"
 RUN wget -O model/yolo11n.pt "https://github.com/Gonztbl/WEBAI/releases/download/v.1.1/yolo11n.pt"
 RUN wget -O model/fruit_ripeness_model_pytorch.pth "https://github.com/Gonztbl/WEBAI/releases/download/v.1.1/fruit_ripeness_model_pytorch.pth"
@@ -26,5 +26,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Bước 8: Mở cổng 10000
 EXPOSE 10000
 
-# Bước 9: Định nghĩa lệnh để khởi chạy ứng dụng
+# Bước 9: Định nghĩa lệnh để khởi chạy ứng dụng (Đã tối ưu hóa)
 CMD ["gunicorn", "--bind", "0.0.0.0:10000", "--workers", "2", "--timeout", "300", "--preload", "app:app"]
