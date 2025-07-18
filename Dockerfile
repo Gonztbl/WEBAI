@@ -31,12 +31,15 @@ RUN mkdir -p model && \
         echo "Downloading ${model}..."; \
         wget -q --show-progress --progress=bar:force:noscroll \
         "https://github.com/Gonztbl/WEBAI/releases/download/v.1.1/${model}" && \
-        [ -s "${model}" ] || { echo "ERROR: Model file ${model} is empty or missing"; exit 1; } \
-    done && \
-    echo "Model files verification:" && \
-    ls -lh && \
-    # Remove any accidental duplicates
-    rm -f *.1 *.2
+        [ -s "${model}" ] || { echo "ERROR: File empty"; exit 1; } && \
+        # Add checksum verification
+        case "${model}" in
+            "fruit_state_classifier.keras") checksum="EXPECTED_MD5";;
+            "yolo11n.pt") checksum="...";;
+            *) checksum="";;
+        esac && \
+        [ -z "$checksum" ] || (echo "$checksum ${model}" | md5sum -c - || { echo "Checksum failed"; exit 1; }) \
+    done
 
 # 5. Create directories for static files
 RUN mkdir -p static/images && \
