@@ -14,7 +14,8 @@ webcolors
 torch==2.1.0
 torchvision==0.16.0
 ultralytics
-tensorflow==2.10.0
+tensorflow-cpu==2.10.0
+# các gói khác
 scikit-learn
 
 # === Utilities ===
