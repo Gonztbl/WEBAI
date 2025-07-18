@@ -36,7 +36,6 @@ IMAGES_DIR.mkdir(parents=True, exist_ok=True)
 MODEL_DIR = BASE_DIR/'model'
 
 # Tạo thư mục nếu chưa tồn tại
-IMAGES_DIR.mkdir(parents=True, exist_ok=True)
 
 
 
@@ -231,7 +230,7 @@ def success():
             if allowed_file(file.filename):
                 filename = f"{uuid.uuid4()}_{secure_filename(file.filename)}"
                 img_path = IMAGES_DIR/filename
-                image.save(str(saved_path))
+                file.save(str(img_path))
             else:
                 error = "Định dạng ảnh không hợp lệ"
         else:
