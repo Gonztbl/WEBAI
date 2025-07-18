@@ -4,10 +4,9 @@ FROM python:3.10-slim
 # Bước 2: Thiết lập thư mục làm việc
 WORKDIR /app
 
-# Bước 3: Cập nhật và cài đặt các thư viện hệ thống cần thiết cho OpenCV
-# ĐÃ THÊM libgl1-mesa-glx và libglib2.0-0
+# Bước 3: Cập nhật và cài đặt chỉ wget (vì opencv-headless không cần thư viện đồ họa)
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends wget libgl1-mesa-glx libglib2.0-0 && \
+    apt-get install -y --no-install-recommends wget && \
     rm -rf /var/lib/apt/lists/*
 
 # Bước 4: Sao chép mã nguồn và các tệp nhỏ vào trước
@@ -21,7 +20,7 @@ RUN wget -O model/fruit_state_classifier.keras "https://github.com/Gonztbl/WEBAI
 RUN wget -O model/yolo11n.pt "https://github.com/Gonztbl/WEBAI/releases/download/v.1.1/yolo11n.pt"
 RUN wget -O model/fruit_ripeness_model_pytorch.pth "https://github.com/Gonztbl/WEBAI/releases/download/v.1.1/fruit_ripeness_model_pytorch.pth"
 
-# Bước 7: Cài đặt các thư viện Python
+# Bước 7: Cài đặt các thư viện Python (sẽ cài opencv-python-headless từ requirements.txt)
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Bước 8: Mở cổng 10000
