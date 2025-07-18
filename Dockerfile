@@ -27,4 +27,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 EXPOSE 10000
 
 # Bước 9: Định nghĩa lệnh để khởi chạy ứng dụng
-CMD ["gunicorn", "--bind", "0.0.0.0:10000", "--workers", "4", "app:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:10000", "--workers", "2", "--timeout", "300", "--preload", "app:app"]
