@@ -1,19 +1,26 @@
 # === Web Framework ===
+# Cần thiết để Render chạy ứng dụng Flask
 gunicorn
 Flask==2.3.3
 Werkzeug==2.3.7
 
 # === Image Processing ===
+# Dùng cho việc mở, xử lý và lưu ảnh
 Pillow==10.0.1
+# Dùng cho các tác vụ xử lý ảnh phức tạp (cv2)
 opencv-python==4.8.1.78
-imutils==0.5.4
 
 # === Machine Learning ===
+# PyTorch và các thư viện liên quan
 torch==2.1.0
 torchvision==0.16.0
-tensorflow==2.10.0
+# Thư viện cho mô hình YOLO
 ultralytics
-scikit-learn
+
+# TensorFlow cho mô hình phân loại .keras
+# QUAN TRỌNG: Phiên bản này yêu cầu Python 3.10
+tensorflow==2.10.0
 
 # === Utilities ===
-numpy<2
+# Thư viện tính toán khoa học
+numpy<2.0
