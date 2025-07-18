@@ -165,7 +165,7 @@ def draw_yolo_bounding_box(image_path, bounding_box):
         
         saved_name = f"{uuid.uuid4()}_yolo.jpg"
         save_path = IMAGES_DIR/saved_name
-        image.save(str(saved_path))
+        image.save(str(save_path))
         return saved_name
     except Exception as e:
         logger.error(f"Error drawing bounding box: {e}")
