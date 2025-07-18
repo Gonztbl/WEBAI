@@ -4,9 +4,10 @@ FROM python:3.10-slim
 # Bước 2: Thiết lập thư mục làm việc
 WORKDIR /app
 
-# Bước 3: Cập nhật và cài đặt wget (công cụ tải file)
+# Bước 3: Cập nhật và cài đặt các thư viện hệ thống cần thiết cho OpenCV
+# ĐÃ THÊM libgl1-mesa-glx và libglib2.0-0
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends wget && \
+    apt-get install -y --no-install-recommends wget libgl1-mesa-glx libglib2.0-0 && \
     rm -rf /var/lib/apt/lists/*
 
 # Bước 4: Sao chép mã nguồn và các tệp nhỏ vào trước
