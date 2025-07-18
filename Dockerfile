@@ -25,16 +25,22 @@ RUN pip install --upgrade pip && \
 # 3. Copy application code
 COPY . .
 
-# 4. Download model files with strict checks and retries
+# 4. Download and VERIFY model files with checksums
 RUN mkdir -p model && \
     cd model && \
-    for model in fruit_state_classifier.keras yolo11n.pt fruit_ripeness_model_pytorch.pth; do \
-        echo "Downloading ${model}..."; \
-        wget -q --show-progress --progress=bar:force:noscroll \
-        "https://github.com/Gonztbl/WEBAI/releases/download/v.1.1/${model}" && \
-        [ -s "${model}" ] || { echo "ERROR: Model file ${model} is empty or missing"; exit 1; } \
-    done && \
-    rm -f *.1 *.2  # Xóa file trùng lặp nếu có
+    \
+    echo "Downloading and verifying fruit_state_classifier.keras..." && \
+    wget -q "${MODEL_URL}/fruit_state_classifier.keras" && \
+    echo "8ebe13c100c32f99911eb341e6b6278832a8848c909675239a587428803a6b5a3  fruit_state_classifier.keras" | sha256sum -c - && \
+    \
+    echo "Downloading and verifying yolo11n.pt..." && \
+    wget -q "${MODEL_URL}/yolo11n.pt" && \
+    echo "0ebbc80d4a7680d14987a577cd213c415555462589574163013a241e3d30925e  yolo11n.pt" | sha256sum -c - && \
+    \
+    echo "Downloading and verifying fruit_ripeness_model_pytorch.pth..." && \
+    wget -q "${MODEL_URL}/fruit_ripeness_model_pytorch.pth" && \
+    echo "48bf9333f4f07af2d02e3965f797f53f06b6b553e414c99736e4f165a6e87b7a6  fruit_ripeness_model_pytorch.pth" | sha256sum -c -
+
 # 5. Create directories for static files
 RUN mkdir -p static/images && \
     chmod -R a+rwx static
