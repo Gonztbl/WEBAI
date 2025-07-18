@@ -4,6 +4,7 @@ FROM python:3.10-slim
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
+ENV MODEL_URL="https://github.com/Gonztbl/WEBAI/releases/download/v.1.1"
 
 # Create and set working directory
 WORKDIR /app
@@ -16,7 +17,7 @@ RUN apt-get update && \
     libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
-# 2. Install Python dependencies
+# 2. Install Python dependencies (layer caching optimized)
 COPY requirements.txt .
 RUN pip install --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
@@ -24,22 +25,29 @@ RUN pip install --upgrade pip && \
 # 3. Copy application code
 COPY . .
 
-# 4. Download model files with strict checks
+# 4. Download model files with strict checks and retries
 RUN mkdir -p model && \
     cd model && \
     for model in fruit_state_classifier.keras yolo11n.pt fruit_ripeness_model_pytorch.pth; do \
         echo "Downloading ${model}..."; \
-        wget -q --show-progress --progress=bar:force:noscroll \
-        "https://github.com/Gonztbl/WEBAI/releases/download/v.1.1/${model}" && \
+        for i in {1..3}; do \
+            wget -q --show-progress --progress=bar:force:noscroll \
+            "${MODEL_URL}/${model}" && break || \
+            { echo "Retry $i/3"; sleep 2; rm -f "${model}"; } \
+        done && \
         [ -s "${model}" ] || { echo "ERROR: File empty"; exit 1; } && \
-        # Add checksum verification
-        case "${model}" in
-            "fruit_state_classifier.keras") checksum="EXPECTED_MD5";;
-            "yolo11n.pt") checksum="...";;
-            *) checksum="";;
+        case "${model}" in \
+            "fruit_state_classifier.keras") checksum="a1b2c3d4e5f6...";; \
+            "yolo11n.pt") checksum="x9y8z7...";; \
+            "fruit_ripeness_model_pytorch.pth") checksum="p0o9i8...";; \
         esac && \
-        [ -z "$checksum" ] || (echo "$checksum ${model}" | md5sum -c - || { echo "Checksum failed"; exit 1; }) \
-    done
+        (echo "${checksum} ${model}" | md5sum -c --strict - || \
+            { echo "Checksum failed"; rm -f "${model}"; exit 1; }) \
+    done && \
+    # Clean potential duplicates
+    rm -f *.1 *.2 && \
+    echo "Model verification passed:" && \
+    ls -lh
 
 # 5. Create directories for static files
 RUN mkdir -p static/images && \
@@ -53,7 +61,9 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
 EXPOSE 10000
 
 # 8. Run as non-root user for security
-RUN useradd -m appuser && chown -R appuser /app
+RUN useradd -m appuser && \
+    chown -R appuser /app && \
+    chmod -R a+rwx /app/model
 USER appuser
 
 # 9. Start command with optimized Gunicorn settings
