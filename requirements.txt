@@ -5,7 +5,7 @@ Werkzeug==2.3.7
 
 # === Image Processing & Color Science ===
 Pillow==10.0.1
-opencv-python==4.8.1.78
+opencv-python-headless==4.8.1.78
 imutils
 # Thư viện mới từ dominant_color.py
 webcolors
