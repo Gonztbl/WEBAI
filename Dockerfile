@@ -19,6 +19,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # 4. Copy source code
 COPY . .
 
+
 # 5. Tải model files với kiểm tra nghiêm ngặt
 RUN mkdir -p model && \
     cd model && \
@@ -29,10 +30,9 @@ RUN mkdir -p model && \
         [ -s "${model}" ] || { echo "ERROR: Model file ${model} is empty or missing"; exit 1; } \
     done && \
     echo "Model files verification:" && \
-    ls -lh && \
-    
+    ls -lh
 
-# 6. Tạo thư mục lưu ảnh
+# 6. Tạo thư mục lưu ảnh (tách thành lệnh RUN riêng)
 RUN mkdir -p static/images
 
 # 7. Healthcheck và port
