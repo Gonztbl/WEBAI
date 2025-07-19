@@ -279,10 +279,8 @@ class FruitAnalyzer:
             # === SỬA ĐỔI QUAN TRỌNG NHẤT ===
             # Tạo một đối tượng YOLO mới cho mỗi yêu cầu.
             # Điều này đảm bảo không có xung đột giữa các worker.
-            yolo_detector = YOLO(config.DETECTOR_MODEL_PATH)
-
             # Chạy phát hiện trên đối tượng vừa tạo
-            results = yolo_detector(image_path, verbose=False)
+            results = self.models['yolo'](image_path, verbose=False)
             
             # Phần còn lại của hàm giữ nguyên...
             best_box = None
