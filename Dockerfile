@@ -13,6 +13,7 @@ WORKDIR /app
 # Install system dependencies (minimal)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
+    libgl1-mesa-glx \
     wget \
     curl \
     && rm -rf /var/lib/apt/lists/*
@@ -59,7 +60,7 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=60s --retries=3 \
     CMD curl -f http://localhost:10000/health || exit 1
 
 # FIXED: Use existing app.py instead of app_fixed_h5.py
-CMD ["gunicorn", "--bind", "0.0.0.0:10000", \
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", \
      "--workers", "1", \
      "--threads", "1", \
      "--timeout", "300", \
