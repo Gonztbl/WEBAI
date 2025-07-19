@@ -8,36 +8,69 @@ from pathlib import Path
 from flask import Flask, render_template, request
 from werkzeug.utils import secure_filename
 from PIL import Image, ImageDraw
-import torch
-import torch.nn as nn
-from torchvision import models, transforms
 import numpy as np
+import requests
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # TensorFlow imports với error handling
 try:
+    import tensorflow as tf
     from tensorflow.keras.preprocessing.image import load_img, img_to_array
     from tensorflow.keras.applications import MobileNetV2
     from tensorflow.keras.models import Sequential, load_model
     from tensorflow.keras.layers import GlobalAveragePooling2D, Dropout, Dense
-    import tensorflow as tf
-    tf.get_logger().setLevel('ERROR')  # Giảm log spam
+    
+    # Tắt GPU và giảm log spam cho TensorFlow CPU
+    tf.config.set_visible_devices([], 'GPU')
+    tf.get_logger().setLevel('ERROR')
+    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+    
     TENSORFLOW_AVAILABLE = True
+    logger = logging.getLogger(__name__)
+    logger.info("TensorFlow CPU loaded successfully")
 except ImportError as e:
     logging.warning(f"TensorFlow not available: {e}")
     TENSORFLOW_AVAILABLE = False
 
-# YOLO import với error handling
+# PyTorch imports
+try:
+    import torch
+    import torch.nn as nn
+    from torchvision import models, transforms
+    
+    # Force CPU usage for PyTorch
+    device = torch.device("cpu")
+    torch.set_num_threads(2)  # Limit threads for better performance
+    
+    PYTORCH_AVAILABLE = True
+    logger = logging.getLogger(__name__)
+    logger.info("PyTorch CPU loaded successfully")
+except ImportError as e:
+    logging.warning(f"PyTorch not available: {e}")
+    PYTORCH_AVAILABLE = False
+    device = None
+
+# YOLO imports
 try:
     from ultralytics import YOLO
     YOLO_AVAILABLE = True
+    logger = logging.getLogger(__name__)
+    logger.info("YOLO loaded successfully")
 except ImportError as e:
     logging.warning(f"YOLO not available: {e}")
     YOLO_AVAILABLE = False
 
-# Color analysis import với error handling
+# Color analysis với webcolors
 try:
-    from dominant_color import color_of_image, name_main_color
+    import webcolors
+    import cv2
+    from sklearn.cluster import KMeans
     COLOR_ANALYSIS_AVAILABLE = True
+    logger = logging.getLogger(__name__)
+    logger.info("Color analysis tools loaded successfully")
 except ImportError as e:
     logging.warning(f"Color analysis not available: {e}")
     COLOR_ANALYSIS_AVAILABLE = False
@@ -47,11 +80,11 @@ app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max upload
 
 # Cấu hình logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
-
-# Thiết bị PyTorch
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 # ===== CẤU HÌNH ĐƯỜNG DẪN =====
 BASE_DIR = Path(__file__).parent
@@ -75,9 +108,74 @@ classifier_model = None
 detector_model = None
 ripeness_model = None
 
+# ===== COLOR ANALYSIS FUNCTIONS =====
+def get_dominant_colors(image_path, k=5):
+    """Lấy màu chủ đạo từ ảnh sử dụng K-means"""
+    if not COLOR_ANALYSIS_AVAILABLE:
+        return [], None
+    
+    try:
+        # Đọc ảnh
+        image = cv2.imread(str(image_path))
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        
+        # Reshape ảnh thành array 2D
+        data = image.reshape((-1, 3))
+        data = np.float32(data)
+        
+        # Áp dụng K-means
+        criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 20, 1.0)
+        _, labels, centers = cv2.kmeans(data, k, None, criteria, 10, cv2.KMEANS_RANDOM_CENTERS)
+        
+        # Chuyển đổi centers về int
+        centers = np.uint8(centers)
+        
+        # Tạo ảnh với màu chủ đạo
+        segmented_image = centers[labels.flatten()]
+        segmented_image = segmented_image.reshape(image.shape)
+        
+        # Lưu ảnh kết quả
+        result_name = f"{uuid.uuid4()}_colors.jpg"
+        result_path = IMAGES_DIR / result_name
+        
+        segmented_pil = Image.fromarray(segmented_image)
+        segmented_pil.save(str(result_path))
+        
+        return centers.tolist(), result_name
+        
+    except Exception as e:
+        logger.error(f"Error in color analysis: {e}")
+        return [], None
+
+def classify_color_ripeness(dominant_colors):
+    """Phân loại độ chín dựa trên màu sắc"""
+    if not dominant_colors:
+        return "Không xác định"
+    
+    try:
+        # Tính toán các đặc trưng màu
+        avg_color = np.mean(dominant_colors, axis=0)
+        r, g, b = avg_color
+        
+        # Logic đơn giản để phân loại
+        if r > 150 and g < 100 and b < 100:  # Đỏ - có thể chín
+            return "Chín (màu đỏ)"
+        elif r > 200 and g > 150 and b < 100:  # Vàng - có thể chín
+            return "Chín (màu vàng)"
+        elif g > 150 and r < 150 and b < 150:  # Xanh - chưa chín
+            return "Chưa chín (màu xanh)"
+        elif r < 100 and g < 100 and b < 100:  # Tối - có thể hỏng
+            return "Có thể hỏng (màu tối)"
+        else:
+            return "Trung bình"
+            
+    except Exception as e:
+        logger.error(f"Error in color classification: {e}")
+        return "Không xác định"
+
 # ===== SIMPLE FALLBACK CLASSIFIER =====
 class SimpleFruitClassifier:
-    """Classifier dự phòng đơn giản dựa trên màu sắc và kích thước"""
+    """Classifier dự phòng đơn giản"""
     
     def __init__(self):
         self.classes = FRESHNESS_CLASSES
@@ -93,21 +191,20 @@ class SimpleFruitClassifier:
             # Logic đơn giản để phân loại
             if mean_brightness > 150:  # Ảnh sáng - có thể là trái cây tươi
                 if color_variance > 1000:  # Màu sắc đa dạng
-                    predictions = [0.4, 0.3, 0.2, 0.05, 0.03, 0.02]  # Thiên về tươi
+                    predictions = [0.4, 0.3, 0.2, 0.05, 0.03, 0.02]
                 else:
                     predictions = [0.3, 0.4, 0.2, 0.05, 0.03, 0.02]
             else:  # Ảnh tối - có thể là trái cây hỏng
-                predictions = [0.1, 0.1, 0.1, 0.3, 0.2, 0.2]  # Thiên về hỏng
+                predictions = [0.1, 0.1, 0.1, 0.3, 0.2, 0.2]
             
             return np.array(predictions)
         except Exception as e:
             logger.error(f"Error in simple classifier: {e}")
-            # Trả về dự đoán ngẫu nhiên
             return np.array([1/6] * 6)
 
-# ===== KIỂM TRA VÀ LOAD MODEL =====
+# ===== MODEL LOADING FUNCTIONS =====
 def verify_models():
-    """Kiểm tra tất cả model files tồn tại"""
+    """Kiểm tra tất cả model files"""
     model_status = {}
     
     for name, model_path in [
@@ -126,97 +223,70 @@ def verify_models():
     return model_status
 
 def load_keras_classifier():
-    """Load Keras classifier với nhiều phương pháp fallback"""
+    """Load Keras classifier với TensorFlow CPU"""
     if not TENSORFLOW_AVAILABLE:
         logger.warning("TensorFlow not available, using simple classifier")
         return SimpleFruitClassifier()
     
     try:
-        # Phương pháp 1: Thử load các file model khác nhau
+        # Thử load các file model khác nhau
         possible_model_files = [
             MODEL_DIR / 'fruit_state_classifier.h5',
             MODEL_DIR / 'fruit_state_classifier.keras',
             MODEL_DIR / 'fruit_classifier.h5',
-            MODEL_DIR / 'model.h5',
-            MODEL_DIR / 'classifier.h5'
+            MODEL_DIR / 'model.h5'
         ]
         
         for model_file in possible_model_files:
             if model_file.exists():
                 try:
-                    logger.info(f"Attempting to load full model: {model_file}")
+                    logger.info(f"Loading full model: {model_file}")
                     model = load_model(str(model_file))
                     logger.info("Successfully loaded full Keras model")
                     return model
                 except Exception as e:
                     logger.warning(f"Failed to load {model_file}: {e}")
         
-        # Phương pháp 2: Tạo model mới và thử load weights
+        # Thử tạo model và load weights
         if CLASSIFIER_MODEL_PATH.exists():
-            logger.info("Attempting to create model and load weights...")
+            logger.info("Creating model architecture and loading weights...")
             
-            # Thử các kiến trúc khác nhau
-            architectures_to_try = [
-                # Kiến trúc đơn giản nhất
-                {
-                    'name': 'Simple Dense',
-                    'layers': [
-                        GlobalAveragePooling2D(),
-                        Dense(len(FRESHNESS_CLASSES), activation='softmax')
-                    ]
-                },
-                # Kiến trúc với 1 hidden layer
-                {
-                    'name': 'Single Hidden',
-                    'layers': [
-                        GlobalAveragePooling2D(),
-                        Dense(128, activation='relu'),
-                        Dense(len(FRESHNESS_CLASSES), activation='softmax')
-                    ]
-                },
-                # Kiến trúc với dropout
-                {
-                    'name': 'With Dropout',
-                    'layers': [
-                        GlobalAveragePooling2D(),
-                        Dropout(0.2),
-                        Dense(128, activation='relu'),
-                        Dense(len(FRESHNESS_CLASSES), activation='softmax')
-                    ]
-                }
+            # Các kiến trúc để thử
+            architectures = [
+                # Kiến trúc đơn giản
+                lambda: Sequential([
+                    GlobalAveragePooling2D(input_shape=(7, 7, 1280)),
+                    Dense(len(FRESHNESS_CLASSES), activation='softmax')
+                ]),
+                # Kiến trúc với hidden layer
+                lambda: Sequential([
+                    GlobalAveragePooling2D(input_shape=(7, 7, 1280)),
+                    Dense(128, activation='relu'),
+                    Dense(len(FRESHNESS_CLASSES), activation='softmax')
+                ]),
+                # Kiến trúc đầy đủ
+                lambda: Sequential([
+                    MobileNetV2(weights='imagenet', include_top=False, input_shape=(224, 224, 3)),
+                    GlobalAveragePooling2D(),
+                    Dropout(0.2),
+                    Dense(128, activation='relu'),
+                    Dense(len(FRESHNESS_CLASSES), activation='softmax')
+                ])
             ]
             
-            for arch in architectures_to_try:
+            for i, arch_func in enumerate(architectures):
                 try:
-                    logger.info(f"Trying architecture: {arch['name']}")
-                    
-                    # Tạo base model
-                    base_model = MobileNetV2(
-                        weights='imagenet', 
-                        include_top=False, 
-                        input_shape=(224, 224, 3)
-                    )
-                    base_model.trainable = False
-                    
-                    # Tạo model với kiến trúc hiện tại
-                    model = Sequential([base_model] + arch['layers'])
-                    
-                    # Thử load weights
+                    logger.info(f"Trying architecture {i+1}...")
+                    model = arch_func()
                     model.load_weights(str(CLASSIFIER_MODEL_PATH))
-                    logger.info(f"Successfully loaded weights with {arch['name']} architecture")
+                    logger.info(f"Successfully loaded weights with architecture {i+1}")
                     return model
-                    
                 except Exception as e:
-                    logger.warning(f"Architecture {arch['name']} failed: {e}")
-                    continue
+                    logger.warning(f"Architecture {i+1} failed: {e}")
         
-        # Phương pháp 3: Tạo model pre-trained mới
+        # Tạo model mới với pre-trained weights
         logger.info("Creating new pre-trained model...")
-        base_model = MobileNetV2(
-            weights='imagenet',
-            include_top=False,
-            input_shape=(224, 224, 3)
-        )
+        base_model = MobileNetV2(weights='imagenet', include_top=False, input_shape=(224, 224, 3))
         base_model.trainable = False
         
         model = Sequential([
@@ -226,22 +296,16 @@ def load_keras_classifier():
             Dense(len(FRESHNESS_CLASSES), activation='softmax')
         ])
         
-        model.compile(
-            optimizer='adam',
-            loss='categorical_crossentropy',
-            metrics=['accuracy']
-        )
-        
-        logger.info("Created new pre-trained model (no custom weights)")
+        model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+        logger.info("Created new pre-trained model")
         return model
         
     except Exception as e:
         logger.error(f"All Keras loading methods failed: {e}")
-        logger.info("Falling back to simple classifier")
         return SimpleFruitClassifier()
 
 def load_yolo_detector():
-    """Load YOLO detector với fallback"""
+    """Load YOLO detector"""
     if not YOLO_AVAILABLE:
         logger.warning("YOLO not available")
         return None
@@ -250,14 +314,14 @@ def load_yolo_detector():
         if DETECTOR_MODEL_PATH.exists():
             logger.info("Loading custom YOLO model...")
             model = YOLO(str(DETECTOR_MODEL_PATH))
-            logger.info("YOLO model loaded successfully")
+            logger.info("Custom YOLO model loaded successfully")
             return model
     except Exception as e:
         logger.error(f"Failed to load custom YOLO: {e}")
     
     try:
         logger.info("Loading default YOLO model...")
-        model = YOLO('yolov8n.pt')  # Model nhỏ hơn
+        model = YOLO('yolov8n.pt')  # Smaller model
         logger.info("Default YOLO model loaded")
         return model
     except Exception as e:
@@ -265,7 +329,11 @@ def load_yolo_detector():
         return None
 
 def load_pytorch_ripeness():
-    """Load PyTorch ripeness model với fallback"""
+    """Load PyTorch ripeness model"""
+    if not PYTORCH_AVAILABLE:
+        logger.warning("PyTorch not available")
+        return None
+    
     try:
         if RIPENESS_MODEL_PATH.exists():
             logger.info("Loading custom PyTorch model...")
@@ -275,8 +343,12 @@ def load_pytorch_ripeness():
                 nn.Dropout(p=0.2),
                 nn.Linear(num_ftrs, NUM_PYTORCH_CLASSES)
             )
-            model.load_state_dict(torch.load(str(RIPENESS_MODEL_PATH), map_location=device))
+            
+            # Load state dict với map_location cho CPU
+            state_dict = torch.load(str(RIPENESS_MODEL_PATH), map_location=device)
+            model.load_state_dict(state_dict)
             model = model.to(device).eval()
+            
             logger.info("Custom PyTorch model loaded successfully")
             return model
     except Exception as e:
@@ -338,26 +410,23 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXT
 
 def process_image_from_link(link):
+    """Xử lý ảnh từ link với requests"""
     try:
-        opener = urllib.request.build_opener()
-        opener.addheaders = [('User-Agent', 'Mozilla/5.0')]
-        urllib.request.install_opener(opener)
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+        response = requests.get(link, headers=headers, timeout=10, stream=True)
+        response.raise_for_status()
         
-        with urllib.request.urlopen(link, timeout=10) as response:
-            if response.status != 200:
-                return None, "Không thể tải ảnh từ liên kết"
-            
-            image_bytes = response.read()
-            image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-            filename = f"{uuid.uuid4()}.jpg"
-            saved_path = IMAGES_DIR / filename
-            image.save(str(saved_path))
-            return str(saved_path), None
+        image = Image.open(io.BytesIO(response.content)).convert("RGB")
+        filename = f"{uuid.uuid4()}.jpg"
+        saved_path = IMAGES_DIR / filename
+        image.save(str(saved_path))
+        return str(saved_path), None
     except Exception as e:
         logger.error(f"Error processing image link: {e}")
         return None, "Lỗi khi xử lý liên kết ảnh"
 
 def detect_fruit_with_yolo(image_path):
+    """YOLO detection với error handling"""
     try:
         if detector_model is None:
             logger.warning("YOLO model not available")
@@ -382,6 +451,7 @@ def detect_fruit_with_yolo(image_path):
         return None
 
 def draw_yolo_bounding_box(image_path, bounding_box):
+    """Vẽ bounding box"""
     try:
         image = Image.open(image_path).convert("RGB")
         if bounding_box:
@@ -398,12 +468,12 @@ def draw_yolo_bounding_box(image_path, bounding_box):
         return None
 
 def predict_fruit_freshness(image_path):
+    """Dự đoán độ tươi của trái cây"""
     try:
         if classifier_model is None:
             return ["Model không khả dụng"], [0]
         
-        # Load và preprocess image
-        if TENSORFLOW_AVAILABLE and hasattr(classifier_model, 'predict'):
+        if hasattr(classifier_model, 'predict'):
             # Keras model
             img = load_img(image_path, target_size=(224, 224))
             img = img_to_array(img).reshape(1, 224, 224, 3).astype('float32') / 255.0
@@ -425,6 +495,7 @@ def predict_fruit_freshness(image_path):
         return ["Lỗi dự đoán"], [0]
 
 def predict_ripeness_pytorch(image_path):
+    """Dự đoán độ chín với PyTorch"""
     try:
         if ripeness_model is None:
             return "Model không khả dụng", 0
@@ -450,27 +521,27 @@ def predict_ripeness_pytorch(image_path):
         return "Lỗi dự đoán", 0
 
 def analyze_color(image_path, bounding_box=None):
-    """Phân tích màu sắc với fallback"""
+    """Phân tích màu sắc"""
     try:
-        if COLOR_ANALYSIS_AVAILABLE:
-            dominant_colors, kmean_img = color_of_image(image_path, bounding_box=bounding_box)
-            color_ripeness = name_main_color(dominant_colors)
-            return color_ripeness, kmean_img
+        dominant_colors, color_img = get_dominant_colors(image_path)
+        color_ripeness = classify_color_ripeness(dominant_colors)
+        return color_ripeness, color_img
     except Exception as e:
         logger.error(f"Color analysis error: {e}")
-    
-    # Fallback: trả về ảnh gốc và màu mặc định
-    try:
-        original_img = Image.open(image_path)
-        fallback_name = f"{uuid.uuid4()}_original.jpg"
-        original_img.save(str(IMAGES_DIR / fallback_name))
-        return "Không xác định", fallback_name
-    except:
-        return "Không xác định", None
+        
+        # Fallback: copy ảnh gốc
+        try:
+            original_img = Image.open(image_path)
+            fallback_name = f"{uuid.uuid4()}_original.jpg"
+            original_img.save(str(IMAGES_DIR / fallback_name))
+            return "Không xác định", fallback_name
+        except:
+            return "Không xác định", None
 
 # ==================== FLASK ROUTES ====================
 @app.route('/health')
 def health_check():
+    """Health check endpoint"""
     return {
         "status": "healthy",
         "models": {
@@ -480,9 +551,11 @@ def health_check():
         },
         "features": {
             "tensorflow": TENSORFLOW_AVAILABLE,
+            "pytorch": PYTORCH_AVAILABLE,
             "yolo": YOLO_AVAILABLE,
             "color_analysis": COLOR_ANALYSIS_AVAILABLE
-        }
+        },
+        "device": str(device) if device else "None"
     }, 200
 
 @app.route('/')
@@ -566,7 +639,6 @@ try:
     logger.info("Application started successfully")
 except Exception as e:
     logger.error(f"Failed to initialize application: {e}")
-    # App vẫn chạy với chức năng hạn chế
 
 if __name__ == '__main__':
     PORT = int(os.environ.get('PORT', 10000))
