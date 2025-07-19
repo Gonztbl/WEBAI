@@ -7,21 +7,20 @@ ENV PYTHONUNBUFFERED=1
 ENV MODEL_URL="https://github.com/Gonztbl/WEBAI/releases/download/v.1.1"
 ENV TF_CPP_MIN_LOG_LEVEL=3
 
-# Cài đặt các gói hệ thống tối thiểu cần thiết
+# ===> SỬA LỖI: Cài đặt thư viện hệ thống cho OpenCV
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     wget \
-    curl && \
+    curl \
+    libgl1-mesa-glx \
+    && \
     rm -rf /var/lib/apt/lists/*
 
 # Tạo thư mục làm việc
 WORKDIR /app
 
-# ===> SỬA LỖI & TỐI ƯU HÓA: Đơn giản hóa toàn bộ quá trình cài đặt
-# Sao chép requirements.txt trước để tận dụng Docker cache
+# Sao chép requirements.txt và cài đặt các gói
 COPY requirements.txt .
-
-# Chạy một lệnh pip install duy nhất. Nó sẽ tự động đọc --extra-index-url từ file.
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Sao chép phần còn lại của ứng dụng
