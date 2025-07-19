@@ -1,4 +1,4 @@
-# ===== MEMORY-OPTIMIZED VERSION =====
+# ===== IMPORTS =====
 import os
 import io
 import uuid
@@ -21,37 +21,28 @@ try:
     from tensorflow.keras.preprocessing.image import load_img, img_to_array
     from tensorflow.keras.models import load_model
     
-    # Memory optimization for TensorFlow
     tf.config.set_visible_devices([], 'GPU')
     tf.get_logger().setLevel('ERROR')
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-    
-    # Limit TensorFlow memory growth
-    try:
-        gpus = tf.config.experimental.list_physical_devices('GPU')
-        if gpus:
-            tf.config.experimental.set_memory_growth(gpus[0], True)
-    except:
-        pass
     
     TENSORFLOW_AVAILABLE = True
 except ImportError:
     TENSORFLOW_AVAILABLE = False
 
-# PyTorch imports with memory optimization
+# PyTorch imports
 try:
     import torch
     import torch.nn as nn
     from torchvision import models, transforms
     
     device = torch.device("cpu")
-    torch.set_num_threads(1)  # Reduce threads to save memory
+    torch.set_num_threads(1)
     PYTORCH_AVAILABLE = True
 except ImportError:
     PYTORCH_AVAILABLE = False
     device = None
 
-# YOLO imports - will load on demand
+# YOLO imports
 YOLO_AVAILABLE = False
 try:
     from ultralytics import YOLO
@@ -61,7 +52,7 @@ except ImportError:
 
 # ===== CONFIGURATION =====
 app = Flask(__name__)
-app.config['MAX_CONTENT_LENGTH'] = 8 * 1024 * 1024  # Reduce to 8MB
+app.config['MAX_CONTENT_LENGTH'] = 8 * 1024 * 1024
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -71,20 +62,23 @@ IMAGES_DIR = BASE_DIR / "static" / "images"
 IMAGES_DIR.mkdir(parents=True, exist_ok=True)
 MODEL_DIR = BASE_DIR / 'model'
 
-# ===== MODEL PATHS =====
-KERAS_MODEL_PATH = MODEL_DIR / 'fruit_state_classifier.keras'
+# ===== CORRECT MODEL PATHS - SỬ DỤNG FILE .H5 CÓ SẴN =====
+H5_MODEL_PATHS = [
+    MODEL_DIR / 'fruit_state_classifier_new.h5',      # ← File bạn đã có!
+    MODEL_DIR / 'fruit_state_classifier.h5',
+    MODEL_DIR / 'fruit_state_classifier.keras'
+]
+
 CLASS_INDICES_PATH = MODEL_DIR / 'fruit_class_indices.json'
 PYTORCH_MODEL_PATH = MODEL_DIR / 'fruit_ripeness_model_pytorch.pth'
-YOLO_MODEL_PATH = MODEL_DIR / 'yolov8l.pt'
-
-# Use smaller YOLO model for memory efficiency
 YOLO_SMALL_PATH = MODEL_DIR / 'yolo11n.pt'
+YOLO_LARGE_PATH = MODEL_DIR / 'yolov8l.pt'
 
 DEFAULT_FRESHNESS_CLASSES = ['freshapples', 'freshbanana', 'freshoranges', 'rottenapples', 'rottenbanana', 'rottenoranges']
 RIPENESS_CLASSES = ['Apple Ripe', 'Apple Unripe', 'Banana Ripe', 'Banana Unripe', 'Orange Ripe', 'Orange Unripe']
 ALLOWED_EXT = {'jpg', 'jpeg', 'png', 'jfif'}
 
-# Global variables - load on demand
+# Global variables
 keras_model = None
 pytorch_model = None
 yolo_model = None
@@ -129,25 +123,21 @@ class EnhancedFruitClassifier:
     
     def predict(self, image_array):
         try:
-            # More sophisticated analysis
             mean_brightness = np.mean(image_array)
             color_variance = np.var(image_array)
             
-            # Analyze color channels
             if len(image_array.shape) == 3:
                 r_mean = np.mean(image_array[:, :, 0])
                 g_mean = np.mean(image_array[:, :, 1])
                 b_mean = np.mean(image_array[:, :, 2])
                 
-                # Color-based fruit detection
-                if r_mean > g_mean and r_mean > b_mean:  # Red dominant - likely apple
+                # Enhanced color-based detection
+                if r_mean > g_mean and r_mean > b_mean:  # Red - apple
                     if mean_brightness > 120:
                         return np.array([0.7, 0.1, 0.1, 0.05, 0.03, 0.02])  # Fresh apple
                     else:
                         return np.array([0.1, 0.05, 0.05, 0.6, 0.15, 0.05])  # Rotten apple
-                elif g_mean > r_mean and g_mean > b_mean:  # Green dominant - could be unripe
-                    return np.array([0.2, 0.3, 0.2, 0.1, 0.1, 0.1])
-                elif (r_mean + g_mean) > b_mean * 1.5:  # Yellow/orange - banana/orange
+                elif (r_mean + g_mean) > b_mean * 1.5:  # Yellow/orange
                     if mean_brightness > 130:
                         return np.array([0.1, 0.4, 0.3, 0.05, 0.1, 0.05])  # Fresh banana/orange
                     else:
@@ -165,49 +155,50 @@ class EnhancedFruitClassifier:
             logger.error(f"Enhanced classifier error: {e}")
             return np.array([1/len(self.classes)] * len(self.classes))
 
-# ===== OPTIMIZED MODEL LOADING =====
+# ===== MODEL LOADING - PRIORITIZE .H5 FILES =====
 def load_keras_model():
-    """Load Keras model with better error handling"""
+    """Load Keras model - prioritize .h5 files"""
     if not TENSORFLOW_AVAILABLE:
         logger.warning("TensorFlow not available")
         return EnhancedFruitClassifier(freshness_classes)
     
-    # Try multiple approaches
-    model_paths = [
-        KERAS_MODEL_PATH,
-        MODEL_DIR / 'fruit_state_classifier.h5',
-        MODEL_DIR / 'fruit_state_classifier_new.h5'
-    ]
-    
-    for model_path in model_paths:
+    # Try loading existing .h5 files first
+    for model_path in H5_MODEL_PATHS:
         if model_path.exists():
             try:
-                logger.info(f"Trying to load: {model_path}")
+                logger.info(f"Trying to load H5 model: {model_path}")
                 
-                # Try different loading methods
-                loading_methods = [
+                # Multiple loading strategies for .h5 files
+                loading_strategies = [
                     lambda: load_model(str(model_path)),
                     lambda: load_model(str(model_path), compile=False),
                     lambda: tf.keras.models.load_model(str(model_path), compile=False)
                 ]
                 
-                for i, method in enumerate(loading_methods):
+                for i, strategy in enumerate(loading_strategies):
                     try:
-                        model = method()
-                        if hasattr(model, 'compile'):
+                        model = strategy()
+                        
+                        # Recompile if needed
+                        if not hasattr(model, 'optimizer') or model.optimizer is None:
                             model.compile(
                                 optimizer='adam',
                                 loss='categorical_crossentropy',
                                 metrics=['accuracy']
                             )
-                        logger.info(f"✅ Keras model loaded with method {i+1}")
+                        
+                        logger.info(f"✅ H5 model loaded successfully with strategy {i+1}")
+                        logger.info(f"Model input shape: {model.input_shape}")
+                        logger.info(f"Model output shape: {model.output_shape}")
                         return model
+                        
                     except Exception as e:
-                        logger.warning(f"Method {i+1} failed: {e}")
+                        logger.warning(f"Strategy {i+1} failed: {e}")
                         continue
                         
             except Exception as e:
                 logger.error(f"❌ Failed to load {model_path}: {e}")
+                continue
     
     logger.info("Using enhanced fallback classifier")
     return EnhancedFruitClassifier(freshness_classes)
@@ -232,7 +223,6 @@ def load_pytorch_model():
             model.load_state_dict(state_dict)
             model = model.to(device).eval()
             
-            # Clear unnecessary variables
             del state_dict
             clear_memory()
             
@@ -254,10 +244,10 @@ def load_yolo_model_on_demand():
         logger.warning("YOLO not available")
         return None
     
-    # Try smaller model first
+    # Try smaller model first to save memory
     model_paths = [
         (YOLO_SMALL_PATH, "small YOLO"),
-        (YOLO_MODEL_PATH, "large YOLO")
+        (YOLO_LARGE_PATH, "large YOLO")
     ]
     
     for model_path, name in model_paths:
@@ -285,19 +275,21 @@ def initialize_models():
     """Initialize models with memory optimization"""
     global keras_model, pytorch_model
     
-    logger.info("🚀 Initializing models with memory optimization...")
+    logger.info("🚀 Initializing models (prioritizing .h5 format)...")
     
     # Load class indices first
     freshness_classes = load_class_indices()
     
-    # Check files
+    # Check which files exist
     logger.info("Checking model files:")
     for name, path in [
-        ("Keras (.keras)", KERAS_MODEL_PATH),
+        ("H5 model (new)", H5_MODEL_PATHS[0]),
+        ("H5 model (old)", H5_MODEL_PATHS[1]),
+        ("Keras model", H5_MODEL_PATHS[2]),
         ("Class indices (.json)", CLASS_INDICES_PATH),
         ("PyTorch (.pth)", PYTORCH_MODEL_PATH),
         ("YOLO small (.pt)", YOLO_SMALL_PATH),
-        ("YOLO large (.pt)", YOLO_MODEL_PATH)
+        ("YOLO large (.pt)", YOLO_LARGE_PATH)
     ]:
         if path.exists():
             size_mb = path.stat().st_size / 1024 / 1024
@@ -305,7 +297,7 @@ def initialize_models():
         else:
             logger.warning(f"❌ {name}: NOT FOUND")
     
-    # Load models sequentially with memory management
+    # Load models sequentially
     try:
         keras_model = load_keras_model()
         clear_memory()
@@ -313,7 +305,7 @@ def initialize_models():
         pytorch_model = load_pytorch_model()
         clear_memory()
         
-        # Don't load YOLO at startup - load on demand
+        # YOLO will be loaded on demand
         logger.info("YOLO model will be loaded on demand")
         
     except Exception as e:
@@ -335,7 +327,6 @@ def process_image_from_link(link):
         response.raise_for_status()
         
         image = Image.open(io.BytesIO(response.content)).convert("RGB")
-        # Resize large images to save memory
         if image.size[0] > 1024 or image.size[1] > 1024:
             image.thumbnail((1024, 1024), Image.Resampling.LANCZOS)
         
@@ -369,7 +360,6 @@ def detect_with_yolo(image_path):
                         max_area = area
                         best_box = (x, y, w, h)
         
-        # Clear memory after detection
         clear_memory()
         return best_box
         
@@ -448,7 +438,6 @@ def predict_ripeness(image_path):
         
         result = RIPENESS_CLASSES[idx.item()], conf.item() * 100
         
-        # Clear tensors
         del input_tensor, output, probs
         clear_memory()
         
@@ -461,19 +450,27 @@ def predict_ripeness(image_path):
 # ===== FLASK ROUTES =====
 @app.route('/health')
 def health_check():
-    """Optimized health check"""
+    """Health check with model info"""
     return {
         "status": "healthy",
         "models": {
             "keras_model": keras_model is not None,
+            "keras_type": type(keras_model).__name__ if keras_model else "None",
             "pytorch_model": pytorch_model is not None,
             "yolo_available": YOLO_AVAILABLE
         },
-        "memory_optimized": True,
+        "model_files": {
+            "h5_new_exists": H5_MODEL_PATHS[0].exists(),
+            "h5_old_exists": H5_MODEL_PATHS[1].exists(),
+            "keras_exists": H5_MODEL_PATHS[2].exists(),
+            "class_indices_exists": CLASS_INDICES_PATH.exists(),
+            "pytorch_exists": PYTORCH_MODEL_PATH.exists()
+        },
         "classes": {
-            "freshness_classes": freshness_classes[:3],  # Show only first 3
+            "freshness_classes": freshness_classes,
             "total_classes": len(freshness_classes)
-        }
+        },
+        "memory_optimized": True
     }, 200
 
 @app.route('/')
@@ -533,7 +530,6 @@ def success():
                 "freshness_prob3": freshness_probs[2],
             }
             
-            # Clear memory after processing
             clear_memory()
             
             return render_template("success.html",
@@ -551,7 +547,7 @@ def success():
 # ===== INITIALIZATION =====
 try:
     initialize_models()
-    logger.info("🎉 Memory-optimized application ready!")
+    logger.info("🎉 H5-optimized application ready!")
 except Exception as e:
     logger.error(f"Initialization error: {e}")
     clear_memory()
