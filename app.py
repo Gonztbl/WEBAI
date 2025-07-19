@@ -218,6 +218,8 @@ def home():
     return render_template('index.html')
 
 @app.route('/success', methods=['POST'])
+# THAY THẾ TOÀN BỘ HÀM SUCCESS BẰNG PHIÊN BẢN NÀY
+@app.route('/success', methods=['POST'])
 def success():
     error = ''
     img_path = None
@@ -251,22 +253,35 @@ def success():
             color_ripeness = name_main_color(dominant_colors)
             ripeness_pred, ripeness_conf = predict_ripeness_pytorch(img_path)
 
+            # ===== PHẦN SỬA LỖI BẮT ĐẦU TẠI ĐÂY =====
+            # Chuẩn bị một dictionary phẳng để template dễ dàng truy cập
+            predictions_for_template = {
+                # Đổi tên biến để khớp với template
+                "pytorch_prediction": ripeness_pred,
+                "pytorch_confidence": ripeness_conf,
+                
+                "color_ripeness": color_ripeness,
+                
+                # Tách danh sách freshness thành các biến riêng lẻ
+                "freshness_class1": freshness_classes[0],
+                "freshness_prob1": freshness_probs[0],
+                "freshness_class2": freshness_classes[1],
+                "freshness_prob2": freshness_probs[1],
+                "freshness_class3": freshness_classes[2],
+                "freshness_prob3": freshness_probs[2],
+            }
+            # ===== KẾT THÚC PHẦN SỬA LỖI =====
+
             return render_template("success.html",
                 img=kmean_img,
                 yolo_img=yolo_img,
-                predictions={
-                    "freshness": list(zip(freshness_classes, freshness_probs)),
-                    "color_ripeness": color_ripeness,
-                    "ripeness_pred": ripeness_pred,
-                    "ripeness_conf": ripeness_conf
-                })
+                predictions=predictions_for_template) # Sử dụng dictionary đã chuẩn bị
     
     except Exception as e:
         logger.error(f"Error in /success: {e}", exc_info=True)
         error = f"Lỗi hệ thống: {str(e)}"
     
     return render_template("index.html", error=error)
-
 if __name__ == '__main__':
     PORT = int(os.environ.get('PORT', 10000))
     app.run(host='0.0.0.0', port=PORT, debug=False)
