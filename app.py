@@ -41,7 +41,7 @@ MODEL_DIR = BASE_DIR/'model'
 
 # Đường dẫn model
 CLASSIFIER_MODEL_PATH = MODEL_DIR/'fruit_state_classifier.keras'
-DETECTOR_MODEL_PATH = MODEL_DIR/'yolo11n.pt'
+DETECTOR_MODEL_PATH = MODEL_DIR/'yolov8l.pt'
 RIPENESS_MODEL_PATH = MODEL_DIR/'fruit_ripeness_model_pytorch.pth'
 
 # Các classes dự đoán
