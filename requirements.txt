@@ -20,7 +20,7 @@ torch==2.3.0
 torchvision==0.18.0
 
 #   * TensorFlow (includes Keras)
-tensorflow-cpu==2.10.0
+tensorflow-cpu==2.11.0
 h5py==3.10.0
 
 #   * YOLO / utilities
