@@ -766,10 +766,13 @@ def success():
             # Log successful analysis
             logger.info(f"Analysis completed successfully: {final_result['description']}")
 
-            return render_template("success.html",
-                                   images=analysis_images,
-                                   predictions=predictions,
-                                   detection_result=detection_result)
+            html = render_template("success.html",
+            images=analysis_images,
+            predictions=predictions,
+            detection_result=detection_result)
+            response = make_response(html)
+            response.headers['Content-Type'] = 'text/html; charset=utf-8'
+            return response
 
     except Exception as e:
         logger.error(f"Error in /success route: {e}")
