@@ -7,12 +7,11 @@ ENV PYTHONUNBUFFERED=1
 ENV MODEL_URL="https://github.com/Gonztbl/WEBAI/releases/download/v.1.1"
 ENV TF_CPP_MIN_LOG_LEVEL=3
 
-# ===> SỬA LỖI: Cài đặt BỘ ĐẦY ĐỦ các thư viện hệ thống cho Headless OpenCV
+# Cài đặt bộ phụ thuộc hệ thống hoàn chỉnh cho Headless OpenCV
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     wget \
     curl \
-    # Các thư viện cần thiết cho OpenCV
     libgl1-mesa-glx \
     libglib2.0-0 \
     libsm6 \
@@ -53,16 +52,13 @@ USER appuser
 # Expose port
 EXPOSE 5000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=30s --start-period=60s --retries=3 \
+# ===> TỐI ƯU HÓA CUỐI CÙNG: Tăng thời gian chờ cho ứng dụng khởi động
+HEALTHCHECK --interval=30s --timeout=30s --start-period=180s --retries=3 \
     CMD curl -f http://localhost:5000/health || exit 1
 
-
+# Lệnh CMD cuối cùng đã được tối ưu cho Lazy Loading trên Render Free Tier
 CMD ["gunicorn", "--bind", "0.0.0.0:5000", \
      "--workers", "1", \
      "--worker-class", "gevent", \
      "--timeout", "120", \
-     "app:app"]```
-
-
-
+     "app:app"]
