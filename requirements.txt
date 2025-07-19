@@ -1,36 +1,14 @@
-# Use PyPI + the official PyTorch CPU wheel index
---extra-index-url https://download.pytorch.org/whl/cpu
-
-# === Core Dependencies ===
+--index-url https://download.pytorch.org/whl/cpu
 python-dotenv==1.0.0
-gevent
-# === Web Framework ===
 Flask==2.3.3
-Werkzeug==2.3.7
 gunicorn==21.2.0
-
-# === Image Processing ===
 Pillow==10.1.0
-opencv-python-headless==4.8.1.78
-imutils==0.5.4
-
-# === Machine Learning ===
-#   * PyTorch + TorchVision (CPU-only)
 torch==2.3.0
 torchvision==0.18.0
-
-#   * TensorFlow (includes Keras)
-tensorflow-cpu==2.19.0
-h5py==3.14.0
-keras==3.10.0
-#   * YOLO / utilities
-ultralytics==8.3.166
-ultralytics-thop==2.0.14
-scikit-learn==1.3.2
-
-# === Utilities ===
+tensorflow-cpu==2.16.1
+h5py==3.11.0
+ultralytics==8.2.2
 numpy==1.26.4
 requests==2.31.0
-tqdm==4.66.1
 webcolors==1.13
 
