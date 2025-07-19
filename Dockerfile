@@ -26,7 +26,7 @@ RUN pip install --upgrade pip && \
 # 3. Copy application code
 COPY . .
 
-# 4. Download and VERIFY model files with checksums (Robust Method)
+# 4. Download and VERIFY model files with checksums (Corrected Syntax)
 RUN mkdir -p model && \
     cd model && \
     \
@@ -40,12 +40,11 @@ RUN mkdir -p model && \
     wget -q "${MODEL_URL}/fruit_ripeness_model_pytorch.pth" && \
     \
     echo "Verifying all checksums..." && \
-    (cat <<EOF | dos2unix | sha256sum -c --strict
+    cat <<EOF | dos2unix | sha256sum -c --strict
 8ebe13c100c32f99911eb341e6b6278832a8848c909675239a587428803a6b5a3  fruit_state_classifier.keras
 0ebbc80d4a7680d14987a577cd213c415555462589574163013a241e3d30925e  yolo11n.pt
 48bf9333f4f07af2d02e3965f797f53f06b6b553e414c99736e4f165a6e87b7a6  fruit_ripeness_model_pytorch.pth
 EOF
-    )
 
 # 5. Create directories for static files
 RUN mkdir -p static/images && \
@@ -67,7 +66,8 @@ USER appuser
 # 9. Start command with optimized Gunicorn settings
 CMD ["gunicorn", "--bind", "0.0.0.0:10000", \
      "--workers", "2", \
-     "--threads", "2",     "--timeout", "300", \
+     "--threads", "2", \
+     "--timeout", "300", \
      "--preload", \
      "--access-logfile", "-", \
      "--error-logfile", "-", \
