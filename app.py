@@ -1,4 +1,4 @@
-import os, io, uuid, urllib.request, json, logging, 
+import os, io, uuid, urllib.request, json, logging, gc
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify
 from werkzeug.utils import secure_filename
