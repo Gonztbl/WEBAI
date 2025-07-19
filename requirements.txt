@@ -11,6 +11,7 @@ gunicorn==21.2.0
 # Image & Color Processing
 Pillow==10.1.0
 colorgram.py==1.2.0
+opencv-python-headless==4.8.1.78 # <== THÊM LẠI PHỤ THUỘC CỦA ULTRALYTICS
 
 # Machine Learning
 torch==2.3.0
