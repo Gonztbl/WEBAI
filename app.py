@@ -128,7 +128,7 @@ class ModelManager:
         try:
             # Load Keras model
             logger.info("Loading Keras freshness model...")
-            self.models['keras'] = load_model(config.CLASSIFIER_MODEL_PATH)
+            self.models['keras'] = load_model(config.CLASSIFIER_MODEL_PATH,compile=False)
 
             # Mới: Tải nhãn cho mô hình Keras
             self._load_keras_class_names()
