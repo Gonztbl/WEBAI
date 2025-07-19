@@ -1,8 +1,7 @@
-# ===== PHẦN IMPORT ĐẦY ĐỦ VÀ SẠCH SẼ =====
+# ===== IMPORTS =====
 import os
 import io
 import uuid
-import urllib.request
 import logging
 from pathlib import Path
 from flask import Flask, render_template, request
@@ -12,27 +11,20 @@ import numpy as np
 import requests
 from dotenv import load_dotenv
 
-# Load environment variables
 load_dotenv()
 
-# TensorFlow imports với error handling
+# TensorFlow imports
 try:
     import tensorflow as tf
     from tensorflow.keras.preprocessing.image import load_img, img_to_array
-    from tensorflow.keras.applications import MobileNetV2
-    from tensorflow.keras.models import Sequential, load_model
-    from tensorflow.keras.layers import GlobalAveragePooling2D, Dropout, Dense
+    from tensorflow.keras.models import load_model
     
-    # Tắt GPU và giảm log spam cho TensorFlow CPU
     tf.config.set_visible_devices([], 'GPU')
     tf.get_logger().setLevel('ERROR')
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
     
     TENSORFLOW_AVAILABLE = True
-    logger = logging.getLogger(__name__)
-    logger.info("TensorFlow CPU loaded successfully")
-except ImportError as e:
-    logging.warning(f"TensorFlow not available: {e}")
+except ImportError:
     TENSORFLOW_AVAILABLE = False
 
 # PyTorch imports
@@ -41,15 +33,10 @@ try:
     import torch.nn as nn
     from torchvision import models, transforms
     
-    # Force CPU usage for PyTorch
     device = torch.device("cpu")
     torch.set_num_threads(2)
-    
     PYTORCH_AVAILABLE = True
-    logger = logging.getLogger(__name__)
-    logger.info("PyTorch CPU loaded successfully")
-except ImportError as e:
-    logging.warning(f"PyTorch not available: {e}")
+except ImportError:
     PYTORCH_AVAILABLE = False
     device = None
 
@@ -57,378 +44,166 @@ except ImportError as e:
 try:
     from ultralytics import YOLO
     YOLO_AVAILABLE = True
-    logger = logging.getLogger(__name__)
-    logger.info("YOLO loaded successfully")
-except ImportError as e:
-    logging.warning(f"YOLO not available: {e}")
+except ImportError:
     YOLO_AVAILABLE = False
 
-# Color analysis
-try:
-    import webcolors
-    import cv2
-    from sklearn.cluster import KMeans
-    COLOR_ANALYSIS_AVAILABLE = True
-    logger = logging.getLogger(__name__)
-    logger.info("Color analysis tools loaded successfully")
-except ImportError as e:
-    logging.warning(f"Color analysis not available: {e}")
-    COLOR_ANALYSIS_AVAILABLE = False
-
-# ===== CẤU HÌNH CƠ BẢN =====
+# ===== CONFIGURATION =====
 app = Flask(__name__)
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max upload
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 
-# Cấu hình logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# ===== CẤU HÌNH ĐƯỜNG DẪN =====
 BASE_DIR = Path(__file__).parent
 IMAGES_DIR = BASE_DIR / "static" / "images"
 IMAGES_DIR.mkdir(parents=True, exist_ok=True)
 MODEL_DIR = BASE_DIR / 'model'
 
-# Đường dẫn model - CẬP NHẬT với tên file chính xác
-CLASSIFIER_MODEL_PATH = MODEL_DIR / 'fruit_state_classifier.weights.h5'
-CLASSIFIER_FULL_MODEL_PATH = MODEL_DIR / 'fruit_state_classifier.h5'
-CLASSIFIER_KERAS_MODEL_PATH = MODEL_DIR / 'fruit_state_classifier.keras'
-DETECTOR_MODEL_PATH = MODEL_DIR / 'yolov8l.pt'
-RIPENESS_MODEL_PATH = MODEL_DIR / 'fruit_ripeness_model_pytorch.pth'
+# ===== SIMPLE MODEL PATHS - CHỈ 3 FILES =====
+KERAS_MODEL_PATH = MODEL_DIR / 'fruit_state_classifier_new.h5'
+PYTORCH_MODEL_PATH = MODEL_DIR / 'fruit_ripeness_model_pytorch.pth'
+YOLO_MODEL_PATH = MODEL_DIR / 'yolov8l.pt'
 
-# Các classes dự đoán
 FRESHNESS_CLASSES = ['Táo Tươi', 'Chuối Tươi', 'Cam Tươi', 'Táo Hỏng', 'Chuối Hỏng', 'Cam Hỏng']
 RIPENESS_CLASSES = ['Apple Ripe', 'Apple Unripe', 'Banana Ripe', 'Banana Unripe', 'Orange Ripe', 'Orange Unripe']
-NUM_PYTORCH_CLASSES = len(RIPENESS_CLASSES)
 ALLOWED_EXT = {'jpg', 'jpeg', 'png', 'jfif'}
 
-# Global model variables
-classifier_model = None
-detector_model = None
-ripeness_model = None
-
-# ===== EXACT MODEL ARCHITECTURE =====
-def create_exact_model_architecture():
-    """Tạo chính xác architecture như trong model summary"""
-    if not TENSORFLOW_AVAILABLE:
-        return None
-    
-    try:
-        # Tạo base model MobileNetV2 chính xác như trong summary
-        base_model = MobileNetV2(
-            weights='imagenet',
-            include_top=False,
-            input_shape=(224, 224, 3)
-        )
-        base_model.trainable = False
-        
-        # Tạo Sequential model với chính xác 5 layers như summary
-        model = Sequential([
-            base_model,                           # Layer 1: mobilenetv2_1.00_224
-            GlobalAveragePooling2D(),            # Layer 2: global_average_pooling2d
-            Dropout(0.2),                        # Layer 3: dropout
-            Dense(128, activation='relu'),       # Layer 4: dense
-            Dense(6, activation='softmax')       # Layer 5: dense_1 (6 classes)
-        ])
-        
-        logger.info("Created exact model architecture matching summary")
-        logger.info(f"Model layers: {len(model.layers)}")
-        
-        return model
-        
-    except Exception as e:
-        logger.error(f"Failed to create exact model architecture: {e}")
-        return None
+# Global models
+keras_model = None
+pytorch_model = None
+yolo_model = None
 
 # ===== SIMPLE FALLBACK CLASSIFIER =====
 class SimpleFruitClassifier:
-    """Classifier dự phòng đơn giản"""
-    
     def __init__(self):
         self.classes = FRESHNESS_CLASSES
-        logger.info("Initialized simple fallback classifier")
+        logger.info("Using simple fallback classifier")
     
     def predict(self, image_array):
-        """Dự đoán đơn giản dựa trên đặc trưng cơ bản"""
         try:
-            # Tính toán các đặc trưng cơ bản
             mean_brightness = np.mean(image_array)
-            color_variance = np.var(image_array)
-            
-            # Logic đơn giản để phân loại
-            if mean_brightness > 150:  # Ảnh sáng - có thể là trái cây tươi
-                if color_variance > 1000:  # Màu sắc đa dạng
-                    predictions = [0.4, 0.3, 0.2, 0.05, 0.03, 0.02]
-                else:
-                    predictions = [0.3, 0.4, 0.2, 0.05, 0.03, 0.02]
-            else:  # Ảnh tối - có thể là trái cây hỏng
-                predictions = [0.1, 0.1, 0.1, 0.3, 0.2, 0.2]
-            
-            return np.array(predictions)
-        except Exception as e:
-            logger.error(f"Error in simple classifier: {e}")
+            if mean_brightness > 150:
+                return np.array([0.4, 0.3, 0.2, 0.05, 0.03, 0.02])
+            else:
+                return np.array([0.1, 0.1, 0.1, 0.3, 0.2, 0.2])
+        except:
             return np.array([1/6] * 6)
 
-# ===== MODEL LOADING FUNCTIONS =====
-def verify_models():
-    """Kiểm tra tất cả model files"""
-    model_status = {}
-    
-    model_files = [
-        ("classifier_weights", CLASSIFIER_MODEL_PATH),
-        ("classifier_full", CLASSIFIER_FULL_MODEL_PATH),
-        ("classifier_keras", CLASSIFIER_KERAS_MODEL_PATH),
-        ("detector", DETECTOR_MODEL_PATH), 
-        ("ripeness", RIPENESS_MODEL_PATH)
-    ]
-    
-    for name, model_path in model_files:
-        if model_path.exists() and model_path.stat().st_size > 0:
-            size_mb = model_path.stat().st_size / 1024 / 1024
-            logger.info(f"Model {name} found: {model_path} ({size_mb:.2f} MB)")
-            model_status[name] = True
-        else:
-            logger.warning(f"Model {name} not found: {model_path}")
-            model_status[name] = False
-    
-    return model_status
-
-def load_keras_classifier():
-    """Load Keras classifier với exact architecture"""
+# ===== MODEL LOADING - SIMPLE & CLEAN =====
+def load_keras_model():
+    """Load Keras model (.h5 file)"""
     if not TENSORFLOW_AVAILABLE:
-        logger.warning("TensorFlow not available, using simple classifier")
+        logger.warning("TensorFlow not available")
         return SimpleFruitClassifier()
     
-    try:
-        # Phương pháp 1: Thử load full model (.h5 hoặc .keras)
-        model_files_to_try = [
-            CLASSIFIER_KERAS_MODEL_PATH,  # .keras file (preferred)
-            CLASSIFIER_FULL_MODEL_PATH,   # .h5 full model
-        ]
-        
-        for model_file in model_files_to_try:
-            if model_file.exists():
-                try:
-                    logger.info(f"Loading full model: {model_file}")
-                    model = load_model(str(model_file))
-                    logger.info("Successfully loaded full Keras model")
-                    logger.info(f"Model summary: {model.summary()}")
-                    return model
-                except Exception as e:
-                    logger.warning(f"Failed to load {model_file}: {e}")
-        
-        # Phương pháp 2: Tạo exact architecture và load weights
-        if CLASSIFIER_MODEL_PATH.exists():
-            logger.info("Creating exact architecture and loading weights...")
-            
-            model = create_exact_model_architecture()
-            if model is not None:
-                try:
-                    # Load weights với exact architecture
-                    model.load_weights(str(CLASSIFIER_MODEL_PATH))
-                    logger.info("Successfully loaded weights with exact architecture")
-                    logger.info(f"Loaded model layers: {len(model.layers)}")
-                    return model
-                except Exception as e:
-                    logger.error(f"Failed to load weights with exact architecture: {e}")
-        
-        # Phương pháp 3: Tạo model mới với pre-trained weights
-        logger.info("Creating new pre-trained model...")
-        model = create_exact_model_architecture()
-        if model is not None:
-            model.compile(
-                optimizer='adam',
-                loss='categorical_crossentropy',
-                metrics=['accuracy']
-            )
-            logger.info("Created new pre-trained model (no custom weights)")
+    if KERAS_MODEL_PATH.exists():
+        try:
+            logger.info(f"Loading Keras model: {KERAS_MODEL_PATH}")
+            model = load_model(str(KERAS_MODEL_PATH))
+            logger.info("✅ Keras model loaded successfully")
             return model
-        
-    except Exception as e:
-        logger.error(f"All Keras loading methods failed: {e}")
+        except Exception as e:
+            logger.error(f"❌ Failed to load Keras model: {e}")
+    else:
+        logger.warning(f"❌ Keras model not found: {KERAS_MODEL_PATH}")
     
-    # Fallback cuối cùng
     logger.info("Using simple fallback classifier")
     return SimpleFruitClassifier()
 
-def load_yolo_detector():
-    """Load YOLO detector"""
-    if not YOLO_AVAILABLE:
-        logger.warning("YOLO not available")
-        return None
-    
-    try:
-        if DETECTOR_MODEL_PATH.exists():
-            logger.info("Loading custom YOLO model...")
-            model = YOLO(str(DETECTOR_MODEL_PATH))
-            logger.info("Custom YOLO model loaded successfully")
-            return model
-    except Exception as e:
-        logger.error(f"Failed to load custom YOLO: {e}")
-    
-    try:
-        logger.info("Loading default YOLO model...")
-        model = YOLO('yolov8n.pt')  # Smaller model
-        logger.info("Default YOLO model loaded")
-        return model
-    except Exception as e:
-        logger.error(f"Failed to load default YOLO: {e}")
-        return None
-
-def load_pytorch_ripeness():
-    """Load PyTorch ripeness model"""
+def load_pytorch_model():
+    """Load PyTorch model (.pth file)"""
     if not PYTORCH_AVAILABLE:
         logger.warning("PyTorch not available")
         return None
     
-    try:
-        if RIPENESS_MODEL_PATH.exists():
-            logger.info("Loading custom PyTorch model...")
+    if PYTORCH_MODEL_PATH.exists():
+        try:
+            logger.info(f"Loading PyTorch model: {PYTORCH_MODEL_PATH}")
+            
             model = models.mobilenet_v2(weights=None)
             num_ftrs = model.classifier[1].in_features
             model.classifier = nn.Sequential(
                 nn.Dropout(p=0.2),
-                nn.Linear(num_ftrs, NUM_PYTORCH_CLASSES)
+                nn.Linear(num_ftrs, len(RIPENESS_CLASSES))
             )
             
-            # Load state dict với map_location cho CPU
-            state_dict = torch.load(str(RIPENESS_MODEL_PATH), map_location=device)
+            state_dict = torch.load(str(PYTORCH_MODEL_PATH), map_location=device)
             model.load_state_dict(state_dict)
             model = model.to(device).eval()
             
-            logger.info("Custom PyTorch model loaded successfully")
+            logger.info("✅ PyTorch model loaded successfully")
             return model
-    except Exception as e:
-        logger.error(f"Failed to load custom PyTorch model: {e}")
+        except Exception as e:
+            logger.error(f"❌ Failed to load PyTorch model: {e}")
+    else:
+        logger.warning(f"❌ PyTorch model not found: {PYTORCH_MODEL_PATH}")
     
+    return None
+
+def load_yolo_model():
+    """Load YOLO model (.pt file)"""
+    if not YOLO_AVAILABLE:
+        logger.warning("YOLO not available")
+        return None
+    
+    if YOLO_MODEL_PATH.exists():
+        try:
+            logger.info(f"Loading YOLO model: {YOLO_MODEL_PATH}")
+            model = YOLO(str(YOLO_MODEL_PATH))
+            logger.info("✅ YOLO model loaded successfully")
+            return model
+        except Exception as e:
+            logger.error(f"❌ Failed to load YOLO model: {e}")
+    else:
+        logger.warning(f"❌ YOLO model not found: {YOLO_MODEL_PATH}")
+    
+    # Try default YOLO as fallback
     try:
-        logger.info("Creating default PyTorch model...")
-        model = models.mobilenet_v2(weights='DEFAULT')
-        num_ftrs = model.classifier[1].in_features
-        model.classifier = nn.Sequential(
-            nn.Dropout(p=0.2),
-            nn.Linear(num_ftrs, NUM_PYTORCH_CLASSES)
-        )
-        model = model.to(device).eval()
-        logger.info("Default PyTorch model created")
+        logger.info("Loading default YOLO model...")
+        model = YOLO('yolov8n.pt')
+        logger.info("✅ Default YOLO model loaded")
         return model
     except Exception as e:
-        logger.error(f"Failed to create PyTorch model: {e}")
+        logger.error(f"❌ Failed to load default YOLO: {e}")
         return None
 
 def initialize_models():
-    """Khởi tạo tất cả models"""
-    global classifier_model, detector_model, ripeness_model
+    """Initialize all 3 models"""
+    global keras_model, pytorch_model, yolo_model
     
-    logger.info("Starting model initialization...")
+    logger.info("🚀 Initializing models...")
     
-    # Kiểm tra models
-    model_status = verify_models()
-    
-    # Load classifier
-    try:
-        classifier_model = load_keras_classifier()
-        logger.info(f"Classifier type: {type(classifier_model).__name__}")
-    except Exception as e:
-        logger.error(f"Failed to load classifier: {e}")
-        classifier_model = SimpleFruitClassifier()
-    
-    # Load detector
-    try:
-        detector_model = load_yolo_detector()
-    except Exception as e:
-        logger.error(f"Failed to load detector: {e}")
-        detector_model = None
-    
-    # Load ripeness model
-    try:
-        ripeness_model = load_pytorch_ripeness()
-    except Exception as e:
-        logger.error(f"Failed to load ripeness model: {e}")
-        ripeness_model = None
-    
-    logger.info("Model initialization completed")
-    logger.info(f"Available models: Classifier={classifier_model is not None}, "
-                f"Detector={detector_model is not None}, "
-                f"Ripeness={ripeness_model is not None}")
-
-# ===== COLOR ANALYSIS FUNCTIONS =====
-def get_dominant_colors(image_path, k=5):
-    """Lấy màu chủ đạo từ ảnh sử dụng K-means"""
-    if not COLOR_ANALYSIS_AVAILABLE:
-        return [], None
-    
-    try:
-        # Đọc ảnh
-        image = cv2.imread(str(image_path))
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        
-        # Reshape ảnh thành array 2D
-        data = image.reshape((-1, 3))
-        data = np.float32(data)
-        
-        # Áp dụng K-means
-        criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 20, 1.0)
-        _, labels, centers = cv2.kmeans(data, k, None, criteria, 10, cv2.KMEANS_RANDOM_CENTERS)
-        
-        # Chuyển đổi centers về int
-        centers = np.uint8(centers)
-        
-        # Tạo ảnh với màu chủ đạo
-        segmented_image = centers[labels.flatten()]
-        segmented_image = segmented_image.reshape(image.shape)
-        
-        # Lưu ảnh kết quả
-        result_name = f"{uuid.uuid4()}_colors.jpg"
-        result_path = IMAGES_DIR / result_name
-        
-        segmented_pil = Image.fromarray(segmented_image)
-        segmented_pil.save(str(result_path))
-        
-        return centers.tolist(), result_name
-        
-    except Exception as e:
-        logger.error(f"Error in color analysis: {e}")
-        return [], None
-
-def classify_color_ripeness(dominant_colors):
-    """Phân loại độ chín dựa trên màu sắc"""
-    if not dominant_colors:
-        return "Không xác định"
-    
-    try:
-        # Tính toán các đặc trưng màu
-        avg_color = np.mean(dominant_colors, axis=0)
-        r, g, b = avg_color
-        
-        # Logic đơn giản để phân loại
-        if r > 150 and g < 100 and b < 100:  # Đỏ - có thể chín
-            return "Chín (màu đỏ)"
-        elif r > 200 and g > 150 and b < 100:  # Vàng - có thể chín
-            return "Chín (màu vàng)"
-        elif g > 150 and r < 150 and b < 150:  # Xanh - chưa chín
-            return "Chưa chín (màu xanh)"
-        elif r < 100 and g < 100 and b < 100:  # Tối - có thể hỏng
-            return "Có thể hỏng (màu tối)"
+    # Check which files exist
+    logger.info("Checking model files:")
+    for name, path in [
+        ("Keras (.h5)", KERAS_MODEL_PATH),
+        ("PyTorch (.pth)", PYTORCH_MODEL_PATH),
+        ("YOLO (.pt)", YOLO_MODEL_PATH)
+    ]:
+        if path.exists():
+            size_mb = path.stat().st_size / 1024 / 1024
+            logger.info(f"✅ {name}: {path} ({size_mb:.2f} MB)")
         else:
-            return "Trung bình"
-            
-    except Exception as e:
-        logger.error(f"Error in color classification: {e}")
-        return "Không xác định"
+            logger.warning(f"❌ {name}: {path} - NOT FOUND")
+    
+    # Load models
+    keras_model = load_keras_model()
+    pytorch_model = load_pytorch_model()
+    yolo_model = load_yolo_model()
+    
+    logger.info("✅ Model initialization completed")
+    logger.info(f"Models loaded: Keras={keras_model is not None}, "
+                f"PyTorch={pytorch_model is not None}, "
+                f"YOLO={yolo_model is not None}")
 
-# ==================== HÀM HỖ TRỢ ====================
+# ===== HELPER FUNCTIONS =====
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXT
 
 def process_image_from_link(link):
-    """Xử lý ảnh từ link với requests"""
     try:
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-        response = requests.get(link, headers=headers, timeout=10, stream=True)
+        response = requests.get(link, headers=headers, timeout=10)
         response.raise_for_status()
         
         image = Image.open(io.BytesIO(response.content)).convert("RGB")
@@ -438,16 +213,16 @@ def process_image_from_link(link):
         return str(saved_path), None
     except Exception as e:
         logger.error(f"Error processing image link: {e}")
-        return None, "Lỗi khi xử lý liên kết ảnh"
+        return None, f"Lỗi xử lý ảnh: {str(e)}"
 
-def detect_fruit_with_yolo(image_path):
-    """YOLO detection với error handling"""
+def detect_with_yolo(image_path):
+    """YOLO object detection"""
+    if yolo_model is None:
+        logger.warning("YOLO model not available")
+        return None
+    
     try:
-        if detector_model is None:
-            logger.warning("YOLO model not available")
-            return None
-        
-        results = detector_model(image_path, verbose=False)
+        results = yolo_model(image_path, verbose=False)
         best_box = None
         max_area = 0
         
@@ -465,40 +240,39 @@ def detect_fruit_with_yolo(image_path):
         logger.error(f"YOLO detection error: {e}")
         return None
 
-def draw_yolo_bounding_box(image_path, bounding_box):
-    """Vẽ bounding box"""
+def draw_bounding_box(image_path, bbox):
+    """Draw bounding box on image"""
     try:
         image = Image.open(image_path).convert("RGB")
-        if bounding_box:
+        if bbox:
             draw = ImageDraw.Draw(image)
-            x, y, w, h = bounding_box
+            x, y, w, h = bbox
             draw.rectangle([x, y, x + w, y + h], outline="red", width=5)
         
-        saved_name = f"{uuid.uuid4()}_yolo.jpg"
-        save_path = IMAGES_DIR / saved_name
+        filename = f"{uuid.uuid4()}_detected.jpg"
+        save_path = IMAGES_DIR / filename
         image.save(str(save_path))
-        return saved_name
+        return filename
     except Exception as e:
-        logger.error(f"Error drawing bounding box: {e}")
+        logger.error(f"Drawing error: {e}")
         return None
 
-def predict_fruit_freshness(image_path):
-    """Dự đoán độ tươi của trái cây"""
+def predict_freshness(image_path):
+    """Predict fruit freshness using Keras model"""
     try:
-        if classifier_model is None:
+        if keras_model is None:
             return ["Model không khả dụng"], [0]
         
-        if hasattr(classifier_model, 'predict'):
+        if hasattr(keras_model, 'predict'):
             # Keras model
             img = load_img(image_path, target_size=(224, 224))
             img = img_to_array(img).reshape(1, 224, 224, 3).astype('float32') / 255.0
-            preds = classifier_model.predict(img, verbose=0)[0]
+            preds = keras_model.predict(img, verbose=0)[0]
         else:
-            # Simple classifier
-            img = Image.open(image_path).convert("RGB")
-            img = img.resize((224, 224))
+            # Simple classifier fallback
+            img = Image.open(image_path).convert("RGB").resize((224, 224))
             img_array = np.array(img)
-            preds = classifier_model.predict(img_array)
+            preds = keras_model.predict(img_array)
         
         top = preds.argsort()[::-1][:3]
         return (
@@ -509,10 +283,10 @@ def predict_fruit_freshness(image_path):
         logger.error(f"Freshness prediction error: {e}")
         return ["Lỗi dự đoán"], [0]
 
-def predict_ripeness_pytorch(image_path):
-    """Dự đoán độ chín với PyTorch"""
+def predict_ripeness(image_path):
+    """Predict fruit ripeness using PyTorch model"""
     try:
-        if ripeness_model is None:
+        if pytorch_model is None:
             return "Model không khả dụng", 0
         
         transform = transforms.Compose([
@@ -526,7 +300,7 @@ def predict_ripeness_pytorch(image_path):
         input_tensor = transform(image).unsqueeze(0).to(device)
         
         with torch.no_grad():
-            output = ripeness_model(input_tensor)
+            output = pytorch_model(input_tensor)
             probs = torch.nn.functional.softmax(output[0], dim=0)
             conf, idx = torch.max(probs, 0)
         
@@ -535,43 +309,27 @@ def predict_ripeness_pytorch(image_path):
         logger.error(f"Ripeness prediction error: {e}")
         return "Lỗi dự đoán", 0
 
-def analyze_color(image_path, bounding_box=None):
-    """Phân tích màu sắc"""
-    try:
-        dominant_colors, color_img = get_dominant_colors(image_path)
-        color_ripeness = classify_color_ripeness(dominant_colors)
-        return color_ripeness, color_img
-    except Exception as e:
-        logger.error(f"Color analysis error: {e}")
-        
-        # Fallback: copy ảnh gốc
-        try:
-            original_img = Image.open(image_path)
-            fallback_name = f"{uuid.uuid4()}_original.jpg"
-            original_img.save(str(IMAGES_DIR / fallback_name))
-            return "Không xác định", fallback_name
-        except:
-            return "Không xác định", None
-
-# ==================== FLASK ROUTES ====================
+# ===== FLASK ROUTES =====
 @app.route('/health')
 def health_check():
     """Health check endpoint"""
     return {
         "status": "healthy",
         "models": {
-            "classifier": classifier_model is not None,
-            "detector": detector_model is not None,
-            "ripeness": ripeness_model is not None
+            "keras_h5": keras_model is not None,
+            "pytorch_pth": pytorch_model is not None,
+            "yolo_pt": yolo_model is not None
+        },
+        "model_files": {
+            "keras_h5_exists": KERAS_MODEL_PATH.exists(),
+            "pytorch_pth_exists": PYTORCH_MODEL_PATH.exists(),
+            "yolo_pt_exists": YOLO_MODEL_PATH.exists()
         },
         "features": {
             "tensorflow": TENSORFLOW_AVAILABLE,
             "pytorch": PYTORCH_AVAILABLE,
-            "yolo": YOLO_AVAILABLE,
-            "color_analysis": COLOR_ANALYSIS_AVAILABLE
-        },
-        "device": str(device) if device else "None",
-        "classifier_type": type(classifier_model).__name__ if classifier_model else "None"
+            "yolo": YOLO_AVAILABLE
+        }
     }, 200
 
 @app.route('/')
@@ -584,7 +342,7 @@ def success():
     img_path = None
     
     try:
-        # Xử lý đầu vào
+        # Process input
         if 'link' in request.form and request.form['link'].strip():
             img_path, error = process_image_from_link(request.form['link'].strip())
         elif 'file' in request.files and request.files['file'].filename:
@@ -598,38 +356,32 @@ def success():
         else:
             error = "Vui lòng tải ảnh hoặc nhập liên kết"
         
-        # Xử lý ảnh nếu có
         if img_path and not error:
             img_path = str(img_path)
             
             # YOLO detection
-            bbox = detect_fruit_with_yolo(img_path)
-            yolo_img = draw_yolo_bounding_box(img_path, bbox)
+            bbox = detect_with_yolo(img_path)
+            detected_img = draw_bounding_box(img_path, bbox)
             
-            if not yolo_img:
-                # Fallback: sử dụng ảnh gốc
+            if not detected_img:
+                # Fallback: use original image
                 original_img = Image.open(img_path)
-                yolo_img = f"{uuid.uuid4()}_original.jpg"
-                original_img.save(str(IMAGES_DIR / yolo_img))
+                detected_img = f"{uuid.uuid4()}_original.jpg"
+                original_img.save(str(IMAGES_DIR / detected_img))
             
             # Predictions
-            freshness_classes, freshness_probs = predict_fruit_freshness(img_path)
-            color_ripeness, kmean_img = analyze_color(img_path, bbox)
-            ripeness_pred, ripeness_conf = predict_ripeness_pytorch(img_path)
+            freshness_classes, freshness_probs = predict_freshness(img_path)
+            ripeness_pred, ripeness_conf = predict_ripeness(img_path)
             
-            # Đảm bảo có đủ dữ liệu
+            # Ensure enough data
             while len(freshness_classes) < 3:
                 freshness_classes.append("N/A")
                 freshness_probs.append(0)
             
-            if not kmean_img:
-                kmean_img = yolo_img
-            
-            # Chuẩn bị dictionary cho template
-            predictions_for_template = {
+            predictions = {
                 "pytorch_prediction": ripeness_pred,
                 "pytorch_confidence": ripeness_conf,
-                "color_ripeness": color_ripeness,
+                "color_ripeness": "Phân tích màu sắc",
                 "freshness_class1": freshness_classes[0],
                 "freshness_prob1": freshness_probs[0],
                 "freshness_class2": freshness_classes[1],
@@ -639,22 +391,22 @@ def success():
             }
             
             return render_template("success.html",
-                                   img=kmean_img,
-                                   yolo_img=yolo_img,
-                                   predictions=predictions_for_template)
+                                   img=detected_img,
+                                   yolo_img=detected_img,
+                                   predictions=predictions)
     
     except Exception as e:
-        logger.error(f"Error in /success: {e}", exc_info=True)
+        logger.error(f"Error in success route: {e}")
         error = f"Lỗi hệ thống: {str(e)}"
     
     return render_template("index.html", error=error)
 
-# ===== KHỞI TẠO ỨNG DỤNG =====
+# ===== INITIALIZATION =====
 try:
     initialize_models()
-    logger.info("Application started successfully")
+    logger.info("🎉 Application ready!")
 except Exception as e:
-    logger.error(f"Failed to initialize application: {e}")
+    logger.error(f"Initialization error: {e}")
 
 if __name__ == '__main__':
     PORT = int(os.environ.get('PORT', 10000))
