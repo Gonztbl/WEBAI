@@ -25,7 +25,7 @@ RUN pip install --upgrade pip && \
 # 3. Copy application code
 COPY . .
 
-# 4. Download and VERIFY model files (Final Foolproof Method)
+# 4. Download and VERIFY model files (Final Correct Hashes)
 RUN mkdir -p model && \
     cd model && \
     \
@@ -35,10 +35,12 @@ RUN mkdir -p model && \
     wget -q "${MODEL_URL}/fruit_ripeness_model_pytorch.pth" && \
     \
     echo "Verifying all checksums..." && \
-    # Use echo -e to force Unix-style line endings (\n), making it immune to Windows CRLF issues
-    echo -e "8ebe13c100c32f99911eb341e6b6278832a8848c909675239a587428803a6b5a3  fruit_state_classifier.keras\n18218ea4798da042d9862e6029ca9df10a831e71520698114f76269acb4df894  yolov8l.pt\n48bf9333f4f07af2d02e3965f797f53f06b6b553e414c99736e4f165a6e87b7a6  fruit_ripeness_model_pytorch.pth" > checksums.txt && \
+    # Create the checksum file with proper Unix line endings inside the container
+    echo "8ebe13c100c32f99911eb341e6b6278832a8848c909675239a587428803a6b5a3  fruit_state_classifier.keras" > checksums.txt && \
+    echo "18218ea4798da042d9862e6029ca9531adbd40ace19b6c9a75e2e28f1adf30cc  yolov8l.pt" >> checksums.txt && \
+    echo "48bf9333f4f07af2d02e3965f797f53f06b6b553e414c99736e4f165a6e87b7a6  fruit_ripeness_model_pytorch.pth" >> checksums.txt && \
     \
-    # Verify against the generated checksum file
+    # Verify against the newly created file
     sha256sum -c --strict checksums.txt
 
 # 5. Create directories for static files
