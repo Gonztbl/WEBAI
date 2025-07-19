@@ -38,11 +38,17 @@ COPY . .
 # Pre-download models to speed up startup
 RUN python -c "try: from tensorflow.keras.applications import MobileNetV2; MobileNetV2(weights='imagenet'); print('TensorFlow models downloaded')\nexcept Exception as e: print(f'TensorFlow download failed: {e}')" || true
 
-# Download model files
+# Download model files - TRY MULTIPLE FORMATS
 RUN mkdir -p model && \
     cd model && \
     echo "Downloading models..." && \
-    (wget -q "${MODEL_URL}/fruit_state_classifier.weights.h5" && echo "Classifier downloaded" || echo "Classifier download failed") && \
+    echo "Trying .keras format first..." && \
+    (wget -q "${MODEL_URL}/fruit_state_classifier.keras" && echo "Keras model downloaded" || echo "Keras model download failed") && \
+    echo "Trying .h5 full model..." && \
+    (wget -q "${MODEL_URL}/fruit_state_classifier.h5" && echo "H5 model downloaded" || echo "H5 model download failed") && \
+    echo "Trying .weights.h5..." && \
+    (wget -q "${MODEL_URL}/fruit_state_classifier.weights.h5" && echo "Weights downloaded" || echo "Weights download failed") && \
+    echo "Downloading other models..." && \
     (wget -q "${MODEL_URL}/yolov8l.pt" && echo "YOLO downloaded" || echo "YOLO download failed") && \
     (wget -q "${MODEL_URL}/fruit_ripeness_model_pytorch.pth" && echo "PyTorch downloaded" || echo "PyTorch download failed") && \
     echo "Download completed" && \
