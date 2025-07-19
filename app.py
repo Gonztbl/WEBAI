@@ -35,9 +35,10 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 # ===== CẤU HÌNH ĐƯỜNG DẪN =====
 BASE_DIR = Path(__file__).parent
-IMAGES_DIR = Path("/tmp/images")
+# Sử dụng thư mục static cho ảnh tạm thời, Render hỗ trợ thư mục này
+IMAGES_DIR = BASE_DIR / "static" / "images"
 IMAGES_DIR.mkdir(parents=True, exist_ok=True)
-MODEL_DIR = BASE_DIR/'model'
+MODEL_DIR = BASE_DIR / 'model'
 
 # Đường dẫn model (ĐÃ CẬP NHẬT ĐỂ SỬ DỤNG FILE WEIGHTS)
 CLASSIFIER_MODEL_PATH = MODEL_DIR/'fruit_state_classifier.weights.h5'
@@ -71,11 +72,9 @@ def load_models():
     try:
         logger.info("Building and loading Keras model with weights...")
         
-        # 1. Khởi tạo mô hình nền MobileNetV2, tải trọng số từ ImageNet và đóng băng nó
         base_model = MobileNetV2(weights='imagenet', include_top=False, input_shape=(224, 224, 3))
         base_model.trainable = False
 
-        # 2. Xây dựng kiến trúc mới dựa trên kiến trúc chính xác của bạn
         architecture = Sequential([
             base_model,
             GlobalAveragePooling2D(),
@@ -84,7 +83,6 @@ def load_models():
             Dense(len(FRESHNESS_CLASSES), activation='softmax')
         ])
         
-        # 3. Tải trọng số đã lưu vào kiến trúc mới
         architecture.load_weights(str(CLASSIFIER_MODEL_PATH))
         
         loaded_models['classifier'] = architecture
@@ -94,7 +92,6 @@ def load_models():
         logger.error(f"Failed to build/load Keras model: {e}", exc_info=True)
         raise
 
-    # Các phần load model YOLO và PyTorch giữ nguyên
     try:
         logger.info("Loading YOLO model...")
         loaded_models['detector'] = YOLO(str(DETECTOR_MODEL_PATH))
@@ -106,7 +103,7 @@ def load_models():
     try:
         logger.info("Loading PyTorch model...")
         model = models.mobilenet_v2(weights=None)
-        num_ftrs = model.classifier[1].in_features
+        num_ftrs = model.classifier.in_features
         model.classifier = nn.Sequential(
             nn.Dropout(p=0.2),
             nn.Linear(num_ftrs, NUM_PYTORCH_CLASSES)
@@ -130,11 +127,12 @@ try:
     ripeness_model = model_dict['ripeness']
 except Exception as e:
     logger.critical(f"Failed to initialize models: {e}")
+    # Trong môi trường production, chúng ta raise lỗi để Gunicorn biết và khởi động lại
     raise
 
 # ==================== HÀM HỖ TRỢ ====================
 def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXT
+    return '.' in filename and filename.rsplit('.', 1).lower() in ALLOWED_EXT
 
 def process_image_from_link(link):
     try:
@@ -149,12 +147,12 @@ def process_image_from_link(link):
             image_bytes = response.read()
             image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
             filename = f"{uuid.uuid4()}.jpg"
-            saved_path = IMAGES_DIR/filename
+            saved_path = IMAGES_DIR / filename
             image.save(str(saved_path))
-            return str(saved_path), None
+            return str(saved_path), filename, None
     except Exception as e:
         logger.error(f"Error processing image link: {e}")
-        return None, "Lỗi khi xử lý liên kết ảnh"
+        return None, None, "Lỗi khi xử lý liên kết ảnh"
 
 def detect_fruit_with_yolo(image_path):
     try:
@@ -164,7 +162,7 @@ def detect_fruit_with_yolo(image_path):
         
         for r in results:
             for box in r.boxes:
-                x1, y1, x2, y2 = box.xyxy[0]
+                x1, y1, x2, y2 = box.xyxy
                 x, y, w, h = int(x1), int(y1), int(x2 - x1), int(y2 - y1)
                 area = w * h
                 if area > max_area:
@@ -184,7 +182,7 @@ def draw_yolo_bounding_box(image_path, bounding_box):
             draw.rectangle([x, y, x + w, y + h], outline="red", width=5)
         
         saved_name = f"{uuid.uuid4()}_yolo.jpg"
-        save_path = IMAGES_DIR/saved_name
+        save_path = IMAGES_DIR / saved_name
         image.save(str(save_path)) 
         return saved_name
     except Exception as e:
@@ -195,15 +193,15 @@ def predict_fruit_freshness(image_path):
     try:
         img = load_img(image_path, target_size=(224, 224))
         img = img_to_array(img).reshape(1, 224, 224, 3).astype('float32') / 255.0
-        preds = classifier_model.predict(img, verbose=0)[0]
+        preds = classifier_model.predict(img, verbose=0)
         top = preds.argsort()[::-1][:3]
         return (
             [FRESHNESS_CLASSES[i] for i in top],
-            [(preds[i]*100).round(2) for i in top]
+            [(preds[i]*100) for i in top]
         )
     except Exception as e:
         logger.error(f"Freshness prediction error: {e}")
-        return ["Lỗi dự đoán"], [0]
+        return ["Lỗi dự đoán"],
 
 def predict_ripeness_pytorch(image_path):
     try:
@@ -219,7 +217,7 @@ def predict_ripeness_pytorch(image_path):
         
         with torch.no_grad():
             output = ripeness_model(input_tensor)
-            probs = torch.nn.functional.softmax(output[0], dim=0)
+            probs = torch.nn.functional.softmax(output, dim=0)
             conf, idx = torch.max(probs, 0)
         
         return RIPENESS_CLASSES[idx.item()], conf.item() * 100
@@ -242,50 +240,47 @@ def success():
     img_path = None
     
     try:
-        # Xử lý đầu vào
         if 'link' in request.form and request.form['link'].strip():
-            img_path, error = process_image_from_link(request.form['link'].strip())
+            img_path, _, error = process_image_from_link(request.form['link'].strip())
         elif 'file' in request.files and request.files['file'].filename:
             file = request.files['file']
             if allowed_file(file.filename):
                 filename = f"{uuid.uuid4()}_{secure_filename(file.filename)}"
-                img_path = IMAGES_DIR/filename
+                img_path = IMAGES_DIR / filename
                 file.save(str(img_path))
             else:
                 error = "Định dạng ảnh không hợp lệ"
         else:
             error = "Vui lòng tải ảnh hoặc nhập liên kết"
 
-        # Xử lý ảnh nếu có
         if img_path and not error:
             img_path = str(img_path)
             bbox = detect_fruit_with_yolo(img_path)
-            yolo_img = draw_yolo_bounding_box(img_path, bbox)
+            yolo_img_name = draw_yolo_bounding_box(img_path, bbox)
             
-            if not yolo_img:
+            if not yolo_img_name:
                 raise ValueError("Không thể vẽ bounding box")
             
             freshness_classes, freshness_probs = predict_fruit_freshness(img_path)
-            dominant_colors, kmean_img = color_of_image(img_path, bounding_box=bbox)
+            dominant_colors, kmean_img_name = color_of_image(img_path, bounding_box=bbox)
             color_ripeness = name_main_color(dominant_colors)
             ripeness_pred, ripeness_conf = predict_ripeness_pytorch(img_path)
 
-            # Chuẩn bị một dictionary phẳng để template dễ dàng truy cập
             predictions_for_template = {
                 "pytorch_prediction": ripeness_pred,
                 "pytorch_confidence": ripeness_conf,
                 "color_ripeness": color_ripeness,
-                "freshness_class1": freshness_classes[0],
-                "freshness_prob1": freshness_probs[0],
-                "freshness_class2": freshness_classes[1],
-                "freshness_prob2": freshness_probs[1],
-                "freshness_class3": freshness_classes[2],
-                "freshness_prob3": freshness_probs[2],
+                "freshness_class1": freshness_classes,
+                "freshness_prob1": f"{freshness_probs:.2f}",
+                "freshness_class2": freshness_classes,
+                "freshness_prob2": f"{freshness_probs:.2f}",
+                "freshness_class3": freshness_classes,
+                "freshness_prob3": f"{freshness_probs:.2f}",
             }
 
             return render_template("success.html",
-                img=kmean_img,
-                yolo_img=yolo_img,
+                img=kmean_img_name,
+                yolo_img=yolo_img_name,
                 predictions=predictions_for_template)
     
     except Exception as e:
@@ -294,6 +289,8 @@ def success():
     
     return render_template("index.html", error=error)
 
+# Khối này chỉ được chạy khi bạn chạy file trực tiếp bằng `python app.py`,
+# Gunicorn sẽ không chạy khối này.
 if __name__ == '__main__':
     PORT = int(os.environ.get('PORT', 10000))
-    app.run(host='0.0.0.0', port=PORT, debug=False)```
+    app.run(host='0.0.0.0', port=PORT, debug=True)
