@@ -69,73 +69,47 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# ==================== MODEL MANAGER ====================
+# ==================== MODEL MANAGER (PHIÊN BẢN LAZY LOADING) ====================
 class ModelManager:
     def __init__(self):
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        self.models = {}
+        self.models = {}  # Bắt đầu với một từ điển rỗng
         self.keras_class_names_vietnamese = []
-        # Bỏ self.tf_graph vì không cần thiết nữa
-        self.load_models()
-        
+        self._load_keras_class_names() # Tải tên class ngay lúc đầu vì nó nhẹ
 
-    # THAY THẾ TOÀN BỘ HÀM CŨ BẰNG HÀM NÀY
     def _load_keras_class_names(self):
-        """Tải và xử lý tên các lớp cho mô hình Keras từ file JSON."""
+        # ... (giữ nguyên toàn bộ nội dung của hàm này)
         try:
             logger.info("Loading Keras class indices from JSON...")
-            # Đảm bảo bạn đang dùng đúng tên file đã cấu hình trong class Config
             with open(config.CLASS_INDICES_PATH, 'r', encoding='utf-8') as f:
-                # class_indices sẽ có dạng: {"0": "freshapples", "1": "freshbanana", ...}
                 class_indices_from_json = json.load(f)
-
-            # Tạo một list rỗng với kích thước bằng số lượng lớp
             sorted_class_names = [""] * len(class_indices_from_json)
-
-            # Lặp qua dictionary từ file JSON
-            # key_str là chỉ số dưới dạng chuỗi (ví dụ: "0")
-            # class_name là tên lớp (ví dụ: "freshapples")
             for key_str, class_name in class_indices_from_json.items():
-                # Chuyển key từ chuỗi sang số nguyên để làm chỉ số cho list
                 index = int(key_str)
-                # Đặt tên lớp vào đúng vị trí trong list
-                # Ví dụ: sorted_class_names[0] = "freshapples"
                 sorted_class_names[index] = class_name
-
-            # Tạo một map để dịch sang tiếng Việt
             translation_map = {
                 "freshapples": "Táo Tươi", "freshbanana": "Chuối Tươi", "freshoranges": "Cam Tươi",
                 "rottenapples": "Táo Hỏng", "rottenbanana": "Chuối Hỏng", "rottenoranges": "Cam Hỏng"
             }
-
-            # Dùng map để tạo danh sách nhãn tiếng Việt cuối cùng
             self.keras_class_names_vietnamese = [
                 translation_map.get(name, name) for name in sorted_class_names
             ]
-
-            logger.info("Keras class names loaded and mapped successfully.")
             logger.info(f"Loaded labels: {self.keras_class_names_vietnamese}")
-
-        except FileNotFoundError:
-            # Nhớ sửa lại tên biến config cho đúng như đã thảo luận ở câu trả lời trước
-            logger.error(f"FATAL: Keras class indices file not found at '{config.CLASS_INDICES_PATH}'")
-            logger.warning("Falling back to hardcoded list. THIS IS UNRELIABLE and may cause wrong predictions!")
-            # Đảm bảo biến fallback tồn tại trong Config
-            self.keras_class_names_vietnamese = config.FRESHNESS_CLASSES_FALLBACK
         except Exception as e:
             logger.error(f"Error loading Keras class indices: {e}")
-            raise
-    def load_models(self):
-        try:
-            # 1. Load Keras model
-            logger.info("Loading Keras freshness model...")
-            self.models['keras'] = load_model(config.CLASSIFIER_MODEL_PATH, compile=False)
-            self.models['keras'].predict(np.zeros((1, *config.TARGET_SIZE, 3)))
-            logger.info("Keras model initialized with a warm-up prediction.")
-            self._load_keras_class_names()
+            self.keras_class_names_vietnamese = config.FRESHNESS_CLASSES_FALLBACK
 
-            # 2. Load PyTorch model
-            logger.info("Loading PyTorch ripeness model...")
+    def get_keras_model(self):
+        if 'keras' not in self.models:
+            logger.info("LAZY LOADING: Keras freshness model...")
+            self.models['keras'] = load_model(config.CLASSIFIER_MODEL_PATH, compile=False)
+            self.models['keras'].predict(np.zeros((1, *config.TARGET_SIZE, 3))) # Warm-up
+            logger.info("Keras model loaded and warmed up.")
+        return self.models['keras']
+
+    def get_pytorch_model(self):
+        if 'pytorch' not in self.models:
+            logger.info("LAZY LOADING: PyTorch ripeness model...")
             pytorch_model = models.mobilenet_v2(weights=None)
             num_ftrs = pytorch_model.classifier[1].in_features
             pytorch_model.classifier = nn.Sequential(
@@ -144,19 +118,16 @@ class ModelManager:
             )
             pytorch_model.load_state_dict(torch.load(config.RIPENESS_MODEL_PATH, map_location=self.device))
             self.models['pytorch'] = pytorch_model.to(self.device).eval()
+            logger.info("PyTorch model loaded.")
+        return self.models['pytorch']
 
-            # 3. THÊM VÀO: Load YOLO model
-            logger.info("Loading YOLO detection model...")
+    def get_yolo_model(self):
+        if 'yolo' not in self.models:
+            logger.info("LAZY LOADING: YOLO detection model...")
             self.models['yolo'] = YOLO(config.DETECTOR_MODEL_PATH)
-            # Chạy thử một lần để "warm-up"
-            self.models['yolo'](np.zeros((*config.TARGET_SIZE, 3), dtype=np.uint8), verbose=False)
-            logger.info("YOLO model initialized with a warm-up prediction.")
-
-            logger.info("All models loaded successfully!")
-
-        except Exception as e:
-            logger.error(f"Error loading models: {e}")
-            raise
+            self.models['yolo'](np.zeros((*config.TARGET_SIZE, 3), dtype=np.uint8), verbose=False) # Warm-up
+            logger.info("YOLO model loaded and warmed up.")
+        return self.models['yolo']
 
 
 # Khởi tạo ngay sau khi định nghĩa class
@@ -318,8 +289,8 @@ class FruitAnalyzer:
             # === SỬA ĐỔI QUAN TRỌNG NHẤT ===
             # Tạo một đối tượng YOLO mới cho mỗi yêu cầu.
             # Điều này đảm bảo không có xung đột giữa các worker.
-            # Chạy phát hiện trên đối tượng vừa tạo
-            results = self.models['yolo'](image_path, verbose=False)
+            yolo_model = model_manager.get_yolo_model() # <== THAY ĐỔI
+            results = yolo_model(image_path, verbose=False)
             
             # Phần còn lại của hàm giữ nguyên...
             best_box = None
@@ -414,7 +385,8 @@ class FruitAnalyzer:
             img = load_img(image_path, target_size=config.TARGET_SIZE)
             img_array = img_to_array(img).reshape(1, *config.TARGET_SIZE, 3).astype('float32') / 255.0
 
-            predictions = self.models['keras'].predict(img_array, verbose=0)[0]
+            keras_model = model_manager.get_keras_model() # <== THAY ĐỔI
+            predictions = keras_model.predict(img_array, verbose=0)[0]
 
             # Get top 3 predictions
             top_indices = predictions.argsort()[::-1][:3]
@@ -448,10 +420,10 @@ class FruitAnalyzer:
             ])
 
             image = Image.open(image_path).convert("RGB")
-            input_tensor = transform(image).unsqueeze(0).to(self.device)
-
+            input_tensor = transform(image).unsqueeze(0).to(model_manager.device
+            pytorch_model = model_manager.get_pytorch_model()                                                
             with torch.no_grad():
-                output = self.models['pytorch'](input_tensor)
+                output = pytorch_model(input_tensor)
                 probabilities = torch.nn.functional.softmax(output[0], dim=0)
                 confidence, predicted_idx = torch.max(probabilities, 0)
 
