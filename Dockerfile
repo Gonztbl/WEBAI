@@ -31,15 +31,17 @@ COPY . .
 # Pre-download TensorFlow models
 RUN python -c "try: from tensorflow.keras.applications import MobileNetV2; MobileNetV2(weights='imagenet'); print('TensorFlow models downloaded')\nexcept Exception as e: print(f'TensorFlow download failed: {e}')" || true
 
-# Download ONLY 3 model files
+# Download CORRECT model files with EXACT names from training script
 RUN mkdir -p model && \
     cd model && \
-    echo "Downloading 3 model files..." && \
-    echo "1. Downloading Keras model (.h5)..." && \
-    (wget -q "${MODEL_URL}/fruit_state_classifier_new.h5" && echo "✅ Keras model downloaded" || echo "❌ Keras model download failed") && \
-    echo "2. Downloading PyTorch model (.pth)..." && \
+    echo "Downloading 3 model files with CORRECT formats..." && \
+    echo "1. Downloading Keras model (.keras format)..." && \
+    (wget -q "${MODEL_URL}/fruit_state_classifier.keras" && echo "✅ Keras model (.keras) downloaded" || echo "❌ Keras model download failed") && \
+    echo "2. Downloading class indices (.json)..." && \
+    (wget -q "${MODEL_URL}/fruit_class_indices.json" && echo "✅ Class indices downloaded" || echo "❌ Class indices download failed") && \
+    echo "3. Downloading PyTorch model (.pth)..." && \
     (wget -q "${MODEL_URL}/fruit_ripeness_model_pytorch.pth" && echo "✅ PyTorch model downloaded" || echo "❌ PyTorch model download failed") && \
-    echo "3. Downloading YOLO model (.pt)..." && \
+    echo "4. Downloading YOLO model (.pt)..." && \
     (wget -q "${MODEL_URL}/yolov8l.pt" && echo "✅ YOLO model downloaded" || echo "❌ YOLO model download failed") && \
     echo "Download completed. Files in model directory:" && \
     ls -la
