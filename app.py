@@ -420,7 +420,7 @@ class FruitAnalyzer:
             ])
 
             image = Image.open(image_path).convert("RGB")
-            input_tensor = transform(image).unsqueeze(0).to(model_manager.device
+            input_tensor = transform(image).unsqueeze(0).to(model_manager.device)
             pytorch_model = model_manager.get_pytorch_model()                                                
             with torch.no_grad():
                 output = pytorch_model(input_tensor)
