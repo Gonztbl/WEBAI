@@ -25,7 +25,11 @@ RUN pip install --upgrade pip && \
 # 3. Copy application code
 COPY . .
 
-# 4. Download and VERIFY model files (Final Version with Weights)
+# 4. Pre-download Keras application weights to speed up startup
+# Đây là bước tối ưu hóa mới, nó sẽ tải trọng số MobileNetV2 vào image
+RUN python -c "from tensorflow.keras.applications import MobileNetV2; MobileNetV2(weights='imagenet')"
+
+# 5. Download and VERIFY model files
 RUN mkdir -p model && \
     cd model && \
     \
@@ -35,34 +39,33 @@ RUN mkdir -p model && \
     wget -q "${MODEL_URL}/fruit_ripeness_model_pytorch.pth" && \
     \
     echo "Verifying all checksums..." && \
-    # Create the checksum file with correct hashes from local machine
     echo "54fe888391e8ff7a70f72134e7b2361b6f7b67e76c472b2af71cd2ec1bf76c8b  fruit_state_classifier.weights.h5" > checksums.txt && \
     echo "18218ea4798da042d9862e6029ca9531adbd40ace19b6c9a75e2e28f1adf30cc  yolov8l.pt" >> checksums.txt && \
     echo "48bf9333f4f07af2d02e3965f797fa56fa429d46b34d29d24e95dc925582e63d  fruit_ripeness_model_pytorch.pth" >> checksums.txt && \
     \
-    # Verify against the newly created file
     sha256sum -c --strict checksums.txt
 
-# 5. Create directories for static files
+# 6. Create directories for static files
 RUN mkdir -p static/images && \
     chmod -R a+rwx static
 
-# 6. Health check configuration
+# 7. Health check configuration
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:10000/health || exit 1
 
-# 7. Expose port
+# 8. Expose port
 EXPOSE 10000
 
-# 8. Run as non-root user for security
+# 9. Run as non-root user for security
 RUN useradd -m appuser && \
     chown -R appuser /app && \
     chmod -R a+rwx /app/model
 USER appuser
 
-# 9. Start command with optimized Gunicorn settings
+# 10. Start command with optimized Gunicorn settings
+# Đã giảm số workers xuống 1 để tiết kiệm RAM
 CMD ["gunicorn", "--bind", "0.0.0.0:10000", \
-     "--workers", "2", \
+     "--workers", "1", \
      "--threads", "2", \
      "--timeout", "300", \
      "--preload", \
