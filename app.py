@@ -299,7 +299,7 @@ class ImageProcessor:
                     logger.info(f"Image resized and saved to {new_width}x{new_height}.")
                     
         except Exception as e:
-            logger.error(f"Could not resize image at {image_path}: {e}")```
+            logger.error(f"Could not resize image at {image_path}: {e}")
 
 
 # ==================== FRUIT DETECTION & ANALYSIS ====================
