@@ -6,8 +6,6 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV MODEL_URL="https://github.com/Gonztbl/WEBAI/releases/download/v.1.1"
 ENV TF_CPP_MIN_LOG_LEVEL=3
-ENV MALLOC_TRIM_THRESHOLD_=100000
-ENV MALLOC_MMAP_THRESHOLD_=100000
 
 # Create working directory
 WORKDIR /app
@@ -29,18 +27,18 @@ RUN pip install --upgrade pip && \
 # Copy application code
 COPY . .
 
-# Download ONLY essential model files (prioritize smaller ones)
+# Download model files - PRIORITIZE .H5 FORMAT
 RUN mkdir -p model && \
     cd model && \
-    echo "Downloading essential model files..." && \
-    echo "1. Downloading class indices (.json)..." && \
+    echo "Downloading model files (prioritizing .h5 format)..." && \
+    echo "1. Downloading H5 model (.h5 format)..." && \
+    (wget -q "${MODEL_URL}/fruit_state_classifier_new.h5" && echo "✅ H5 model downloaded" || echo "❌ H5 model download failed") && \
+    echo "2. Downloading class indices (.json)..." && \
     (wget -q "${MODEL_URL}/fruit_class_indices.json" && echo "✅ Class indices downloaded" || echo "❌ Class indices download failed") && \
-    echo "2. Downloading PyTorch model (.pth)..." && \
+    echo "3. Downloading PyTorch model (.pth)..." && \
     (wget -q "${MODEL_URL}/fruit_ripeness_model_pytorch.pth" && echo "✅ PyTorch model downloaded" || echo "❌ PyTorch model download failed") && \
-    echo "3. Downloading small YOLO model (.pt)..." && \
+    echo "4. Downloading small YOLO model (.pt)..." && \
     (wget -q "${MODEL_URL}/yolo11n.pt" && echo "✅ Small YOLO downloaded" || echo "❌ Small YOLO download failed") && \
-    echo "4. Downloading Keras model (.keras) - if space allows..." && \
-    (wget -q "${MODEL_URL}/fruit_state_classifier.keras" && echo "✅ Keras model downloaded" || echo "❌ Keras model download failed") && \
     echo "Download completed. Files in model directory:" && \
     ls -la
 
@@ -70,4 +68,4 @@ CMD ["gunicorn", "--bind", "0.0.0.0:10000", \
      "--preload", \
      "--access-logfile", "-", \
      "--error-logfile", "-", \
-     "app_optimized:app"]
+     "app_fixed_h5:app"]
