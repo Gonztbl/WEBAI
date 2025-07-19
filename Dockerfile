@@ -63,12 +63,13 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=60s --retries=3 \
     CMD curl -f http://localhost:5000/health || exit 1
 
 # FIXED: Use existing app.py instead of app_fixed_h5.py
+# CMD for Production with asynchronous workers
 CMD ["gunicorn", "--bind", "0.0.0.0:5000", \
-     "--workers", "1", \
-     "--threads", "1", \
-     "--timeout", "3000", \
-     "--max-requests", "100", \
-     "--max-requests-jitter", "10", \
+     "--worker-class", "gevent", \
+     "--workers", "3", \
+     "--timeout", "300", \
+     "--max-requests", "1000", \
+     "--max-requests-jitter", "50", \
      "--preload", \
      "--access-logfile", "-", \
      "--error-logfile", "-", \
