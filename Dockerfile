@@ -14,14 +14,13 @@ WORKDIR /app
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     libgl1-mesa-glx \
-    libglib2.0-0 \  # This is the missing dependency
+    libglib2.0-0 \
     libsm6 \
     libxext6 \
     libxrender1 \
     wget \
-    curl \
-    && rm -rf /var/lib/apt/lists/
-
+    curl && \
+    rm -rf /var/lib/apt/lists/*
 # Copy requirements and install Python dependencies
 COPY requirements.txt .
 RUN pip install --upgrade pip && \
