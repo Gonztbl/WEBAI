@@ -8,7 +8,9 @@ from pathlib import Path
 from flask import Flask, render_template, request
 from werkzeug.utils import secure_filename
 from PIL import Image, ImageDraw
-
+# Thêm những dòng này vào phần import của Keras/TensorFlow
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Input, Conv2D, MaxPooling2D, Flatten, Dense
 import torch
 import torch.nn as nn
 from torchvision import models, transforms
@@ -63,25 +65,51 @@ def verify_models():
             raise ValueError(f"Model file is empty: {model_path}")
         
         logger.info(f"Model verified: {model_path} ({model_path.stat().st_size/1024/1024:.2f} MB)")
+# ===== THÊM CÁC DÒNG NÀY VÀO PHẦN IMPORT Ở ĐẦU FILE =====
+from tensorflow.keras.applications import MobileNetV2
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import GlobalAveragePooling2D, Dropout, Dense
 
+
+# ===== THAY THẾ TOÀN BỘ HÀM load_models() CŨ BẰNG HÀM NÀY =====
 def load_models():
-    """Load các model với xử lý lỗi chi tiết"""
+    """Load các model với kiến trúc được xây dựng lại và tải trọng số"""
     loaded_models = {}
 
     try:
-        logger.info("Loading Keras model...")
-        loaded_models['classifier'] = load_model(str(CLASSIFIER_MODEL_PATH))
-        logger.info("Keras model loaded successfully")
+        logger.info("Building and loading Keras model with weights...")
+        
+        # 1. Khởi tạo mô hình nền MobileNetV2, tải trọng số từ ImageNet và đóng băng nó
+        base_model = MobileNetV2(weights='imagenet', include_top=False, input_shape=(224, 224, 3))
+        base_model.trainable = False
+
+        # 2. Xây dựng kiến trúc mới dựa trên kiến trúc chính xác của bạn
+        architecture = Sequential([
+            base_model,
+            GlobalAveragePooling2D(),
+            Dropout(0.2), # Dựa trên kiến trúc điển hình, nếu bạn dùng giá trị khác, hãy thay đổi
+            Dense(128, activation='relu'),
+            Dense(len(FRESHNESS_CLASSES), activation='softmax') # Đầu ra 6 lớp
+        ])
+        
+        # 3. Tải trọng số đã lưu vào kiến trúc mới
+        weights_path = str(MODEL_DIR / 'fruit_state_classifier.weights.h5')
+        architecture.load_weights(weights_path)
+        
+        loaded_models['classifier'] = architecture
+        logger.info("Keras model built and weights loaded successfully")
+
     except Exception as e:
-        logger.error(f"Failed to load Keras model: {e}")
+        logger.error(f"Failed to build/load Keras model: {e}", exc_info=True)
         raise
 
+    # Các phần load model YOLO và PyTorch giữ nguyên
     try:
         logger.info("Loading YOLO model...")
         loaded_models['detector'] = YOLO(str(DETECTOR_MODEL_PATH))
         logger.info("YOLO model loaded successfully")
     except Exception as e:
-        logger.error(f"Failed to load YOLO model: {e}")
+        logger.error(f"Failed to load YOLO model: {e}", exc_info=True)
         raise
 
     try:
@@ -96,7 +124,7 @@ def load_models():
         loaded_models['ripeness'] = model.to(device).eval()
         logger.info("PyTorch model loaded successfully")
     except Exception as e:
-        logger.error(f"Failed to load PyTorch model: {e}")
+        logger.error(f"Failed to load PyTorch model: {e}", exc_info=True)
         raise
 
     return loaded_models
