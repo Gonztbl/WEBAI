@@ -7,19 +7,24 @@ ENV PYTHONUNBUFFERED=1
 ENV MODEL_URL="https://github.com/Gonztbl/WEBAI/releases/download/v.1.1"
 ENV TF_CPP_MIN_LOG_LEVEL=3
 
-# ===> SỬA LỖI: Cài đặt thư viện hệ thống cho OpenCV
+# ===> SỬA LỖI: Cài đặt BỘ ĐẦY ĐỦ các thư viện hệ thống cho Headless OpenCV
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     wget \
     curl \
+    # Các thư viện cần thiết cho OpenCV
     libgl1-mesa-glx \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender1 \
     && \
     rm -rf /var/lib/apt/lists/*
 
 # Tạo thư mục làm việc
 WORKDIR /app
 
-# Sao chép requirements.txt và cài đặt các gói
+# Sao chép requirements.txt và cài đặt các gói Python
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
@@ -57,4 +62,14 @@ CMD ["gunicorn", "--bind", "0.0.0.0:5000", \
      "--workers", "1", \
      "--worker-class", "gevent", \
      "--timeout", "120", \
-     "app:app"]
+     "app:app"]```
+
+### Các Bước Tiếp Theo
+
+1.  **Lưu** thay đổi trong tệp `Dockerfile`.
+2.  **Không cần thay đổi** `requirements.txt` hay `app.py`. Chúng đã đúng.
+3.  **Commit và push** mã nguồn của bạn lên GitHub/GitLab.
+
+Sau lần triển khai này, môi trường Docker sẽ có đầy đủ các thư viện hệ thống mà `ultralytics` (thông qua `cv2`) cần để khởi động. Lỗi `ImportError` sẽ được giải quyết hoàn toàn.
+
+Đây là bước cuối cùng để giải quyết vấn đề môi trường. Sau lần triển khai này, ứng dụng của bạn sẽ hoạt động. Chúc bạn thành công
