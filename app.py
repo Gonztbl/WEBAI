@@ -127,36 +127,39 @@ class ModelManager:
         except Exception as e:
             logger.error(f"Error loading Keras class indices: {e}")
             raise
-    def load_models(self):
-        try:
-            # Load Keras model
-            logger.info("Loading Keras freshness model...")
-            self.models['keras'] = load_model(config.CLASSIFIER_MODEL_PATH,compile=False)
+    # Trong class ModelManager
 
-            # Mới: Tải nhãn cho mô hình Keras
-            self._load_keras_class_names()
+def load_models(self):
+    try:
+        # Load Keras model
+        logger.info("Loading Keras freshness model...")
+        self.models['keras'] = load_model(config.CLASSIFIER_MODEL_PATH,compile=False)
+        # THÊM BƯỚC KHỞI ĐỘNG ĐỂ TĂNG TÍNH ỔN ĐỊNH
+        self.models['keras'].predict(np.zeros((1, *config.TARGET_SIZE, 3)))
+        logger.info("Keras model initialized with a warm-up prediction.")
 
-            # Load YOLO model
-            logger.info("Loading YOLO detection model...")
-            self.models['yolo'] = YOLO(config.DETECTOR_MODEL_PATH)
-            self.models['yolo'].to('cpu')
+        # Mới: Tải nhãn cho mô hình Keras
+        self._load_keras_class_names()
 
-            # Load PyTorch model
-            logger.info("Loading PyTorch ripeness model...")
-            pytorch_model = models.mobilenet_v2(weights=None)
-            num_ftrs = pytorch_model.classifier[1].in_features
-            pytorch_model.classifier = nn.Sequential(
-                nn.Dropout(p=0.2),
-                nn.Linear(num_ftrs, len(config.RIPENESS_CLASSES))
-            )
-            pytorch_model.load_state_dict(torch.load(config.RIPENESS_MODEL_PATH, map_location=self.device))
-            self.models['pytorch'] = pytorch_model.to(self.device).eval()
+        # === XÓA HOÀN TOÀN KHỐI TẢI YOLO Ở ĐÂY ===
+        # Dòng "Loading YOLO detection model..." và các dòng liên quan đã được xóa.
 
-            logger.info("All models loaded successfully!")
+        # Load PyTorch model
+        logger.info("Loading PyTorch ripeness model...")
+        pytorch_model = models.mobilenet_v2(weights=None)
+        num_ftrs = pytorch_model.classifier[1].in_features
+        pytorch_model.classifier = nn.Sequential(
+            nn.Dropout(p=0.2),
+            nn.Linear(num_ftrs, len(config.RIPENESS_CLASSES))
+        )
+        pytorch_model.load_state_dict(torch.load(config.RIPENESS_MODEL_PATH, map_location=self.device))
+        self.models['pytorch'] = pytorch_model.to(self.device).eval()
 
-        except Exception as e:
-            logger.error(f"Error loading models: {e}")
-            raise
+        logger.info("All models loaded successfully!")
+
+    except Exception as e:
+        logger.error(f"Error loading models: {e}")
+        raise
 
 
 # Khởi tạo ngay sau khi định nghĩa class
@@ -267,15 +270,25 @@ class ImageProcessor:
 # ==================== FRUIT DETECTION & ANALYSIS ====================
 class FruitAnalyzer:
     def __init__(self, model_manager):
+        # KHÔNG LƯU self.models nữa. Chỉ lưu các mô hình cần thiết
         self.models = model_manager.models
         self.device = model_manager.device
+        # Xóa dòng self.models['yolo'] khỏi đây nếu có
 
     def detect_fruit_with_yolo(self, image_path):
         """Detect fruit using YOLO and return best bounding box"""
         try:
             logger.info("Running YOLO fruit detection...")
 
-            results = self.models['yolo'](image_path, verbose=False)
+            # === SỬA ĐỔI QUAN TRỌNG NHẤT ===
+            # Tạo một đối tượng YOLO mới cho mỗi yêu cầu.
+            # Điều này đảm bảo không có xung đột giữa các worker.
+            yolo_detector = YOLO(config.DETECTOR_MODEL_PATH)
+
+            # Chạy phát hiện trên đối tượng vừa tạo
+            results = yolo_detector(image_path, verbose=False)
+            
+            # Phần còn lại của hàm giữ nguyên...
             best_box = None
             max_confidence = 0
 
