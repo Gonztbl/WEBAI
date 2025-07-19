@@ -1,48 +1,46 @@
 # Use Python 3.10 slim image
 FROM python:3.10-slim
 
-# Set environment variables
+# Set environment variables for memory optimization
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV MODEL_URL="https://github.com/Gonztbl/WEBAI/releases/download/v.1.1"
-ENV TF_CPP_MIN_LOG_LEVEL=2
+ENV TF_CPP_MIN_LOG_LEVEL=3
+ENV MALLOC_TRIM_THRESHOLD_=100000
+ENV MALLOC_MMAP_THRESHOLD_=100000
 
 # Create working directory
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies (minimal)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     wget \
     curl \
-    libgl1-mesa-glx \
-    libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install Python dependencies
 COPY requirements.txt .
 RUN pip install --upgrade pip && \
     pip install torch==2.3.0 torchvision==0.18.0 --index-url https://download.pytorch.org/whl/cpu && \
-    pip install --no-cache-dir -r requirements.txt
+    pip install --no-cache-dir -r requirements.txt && \
+    pip cache purge
 
 # Copy application code
 COPY . .
 
-# Pre-download TensorFlow models
-RUN python -c "try: from tensorflow.keras.applications import MobileNetV2; MobileNetV2(weights='imagenet'); print('TensorFlow models downloaded')\nexcept Exception as e: print(f'TensorFlow download failed: {e}')" || true
-
-# Download CORRECT model files with EXACT names from training script
+# Download ONLY essential model files (prioritize smaller ones)
 RUN mkdir -p model && \
     cd model && \
-    echo "Downloading 3 model files with CORRECT formats..." && \
-    echo "1. Downloading Keras model (.keras format)..." && \
-    (wget -q "${MODEL_URL}/fruit_state_classifier.keras" && echo "✅ Keras model (.keras) downloaded" || echo "❌ Keras model download failed") && \
-    echo "2. Downloading class indices (.json)..." && \
+    echo "Downloading essential model files..." && \
+    echo "1. Downloading class indices (.json)..." && \
     (wget -q "${MODEL_URL}/fruit_class_indices.json" && echo "✅ Class indices downloaded" || echo "❌ Class indices download failed") && \
-    echo "3. Downloading PyTorch model (.pth)..." && \
+    echo "2. Downloading PyTorch model (.pth)..." && \
     (wget -q "${MODEL_URL}/fruit_ripeness_model_pytorch.pth" && echo "✅ PyTorch model downloaded" || echo "❌ PyTorch model download failed") && \
-    echo "4. Downloading YOLO model (.pt)..." && \
-    (wget -q "${MODEL_URL}/yolov8l.pt" && echo "✅ YOLO model downloaded" || echo "❌ YOLO model download failed") && \
+    echo "3. Downloading small YOLO model (.pt)..." && \
+    (wget -q "${MODEL_URL}/yolo11n.pt" && echo "✅ Small YOLO downloaded" || echo "❌ Small YOLO download failed") && \
+    echo "4. Downloading Keras model (.keras) - if space allows..." && \
+    (wget -q "${MODEL_URL}/fruit_state_classifier.keras" && echo "✅ Keras model downloaded" || echo "❌ Keras model download failed") && \
     echo "Download completed. Files in model directory:" && \
     ls -la
 
@@ -62,12 +60,14 @@ EXPOSE 10000
 HEALTHCHECK --interval=30s --timeout=30s --start-period=60s --retries=3 \
     CMD curl -f http://localhost:10000/health || exit 1
 
-# Start command
+# Start command with memory optimization
 CMD ["gunicorn", "--bind", "0.0.0.0:10000", \
      "--workers", "1", \
-     "--threads", "2", \
+     "--threads", "1", \
      "--timeout", "300", \
+     "--max-requests", "100", \
+     "--max-requests-jitter", "10", \
      "--preload", \
      "--access-logfile", "-", \
      "--error-logfile", "-", \
-     "app:app"]
+     "app_optimized:app"]
