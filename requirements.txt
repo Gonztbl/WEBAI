@@ -18,7 +18,8 @@ torch==2.3.0
 torchvision==0.18.0
 tensorflow-cpu==2.16.1
 h5py==3.11.0
-ultralytics==8.2.2
+ultralytics==8.3.166
+ultralytics-thop==2.0.14
 
 # Utilities
 numpy==1.26.4
