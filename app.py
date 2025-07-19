@@ -1,4 +1,4 @@
-import os, io, uuid, urllib.request, json, logging
+import os, io, uuid, urllib.request, json, logging, 
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify
 from werkzeug.utils import secure_filename
@@ -68,24 +68,53 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# ==================== MODEL MANAGER (PHIÊN BẢN LAZY LOADING) ====================
+# ==================== MODEL MANAGER (PHIÊN BẢN LAZY LOADING + DỌN DẸP BỘ NHỚ) ====================
 class ModelManager:
     def __init__(self):
+        """
+        Khởi tạo ModelManager.
+        Chỉ tải các tài nguyên nhẹ ban đầu, các mô hình nặng sẽ được tải lười.
+        """
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        self.models = {}  # Bắt đầu với một từ điển rỗng
+        self.models = {}  # Từ điển để lưu trữ các mô hình đã được tải
         self.keras_class_names_vietnamese = []
-        self._load_keras_class_names() # Tải tên class ngay lúc đầu vì nó nhẹ
+        # Tải tên các lớp ngay lúc đầu vì nó rất nhẹ và cần thiết
+        self._load_keras_class_names()
+
+    def _clear_other_models(self, keep_key=None):
+        """
+        Xóa các mô hình không cần thiết khỏi bộ nhớ để giải phóng RAM.
+        Đây là chức năng cốt lõi để tránh lỗi Out-of-Memory.
+        
+        Args:
+            keep_key (str, optional): Key của mô hình cần giữ lại, không xóa.
+        """
+        # Tạo một bản sao của các key để có thể sửa đổi dictionary trong vòng lặp
+        keys_to_remove = [key for key in self.models.keys() if key != keep_key]
+        
+        for key in keys_to_remove:
+            logger.info(f"UNLOADING model: '{key}' to free up memory.")
+            del self.models[key]
+            
+        if keys_to_remove:
+            # Gọi bộ thu gom rác của Python một cách tường minh
+            # để cố gắng giải phóng bộ nhớ ngay lập tức.
+            gc.collect()
 
     def _load_keras_class_names(self):
-        # ... (giữ nguyên toàn bộ nội dung của hàm này)
+        """Tải và xử lý tên các lớp từ tệp JSON."""
         try:
             logger.info("Loading Keras class indices from JSON...")
             with open(config.CLASS_INDICES_PATH, 'r', encoding='utf-8') as f:
                 class_indices_from_json = json.load(f)
+            
+            # Sắp xếp tên lớp theo đúng chỉ mục
             sorted_class_names = [""] * len(class_indices_from_json)
             for key_str, class_name in class_indices_from_json.items():
                 index = int(key_str)
                 sorted_class_names[index] = class_name
+            
+            # Ánh xạ sang tiếng Việt
             translation_map = {
                 "freshapples": "Táo Tươi", "freshbanana": "Chuối Tươi", "freshoranges": "Cam Tươi",
                 "rottenapples": "Táo Hỏng", "rottenbanana": "Chuối Hỏng", "rottenoranges": "Cam Hỏng"
@@ -95,19 +124,28 @@ class ModelManager:
             ]
             logger.info(f"Loaded labels: {self.keras_class_names_vietnamese}")
         except Exception as e:
-            logger.error(f"Error loading Keras class indices: {e}")
+            logger.error(f"Error loading Keras class indices: {e}. Using fallback list.")
             self.keras_class_names_vietnamese = config.FRESHNESS_CLASSES_FALLBACK
 
     def get_keras_model(self):
+        """Lấy mô hình Keras. Tải lười nếu chưa có trong bộ nhớ."""
         if 'keras' not in self.models:
+            # Xóa các mô hình khác TRƯỚC KHI tải mô hình mới
+            self._clear_other_models(keep_key='keras')
+            
             logger.info("LAZY LOADING: Keras freshness model...")
             self.models['keras'] = load_model(config.CLASSIFIER_MODEL_PATH, compile=False)
-            self.models['keras'].predict(np.zeros((1, *config.TARGET_SIZE, 3))) # Warm-up
+            # "Warm-up" để đảm bảo các lần dự đoán sau nhanh hơn
+            self.models['keras'].predict(np.zeros((1, *config.TARGET_SIZE, 3)), verbose=0) 
             logger.info("Keras model loaded and warmed up.")
         return self.models['keras']
 
     def get_pytorch_model(self):
+        """Lấy mô hình PyTorch. Tải lười nếu chưa có trong bộ nhớ."""
         if 'pytorch' not in self.models:
+            # Xóa các mô hình khác TRƯỚC KHI tải mô hình mới
+            self._clear_other_models(keep_key='pytorch')
+
             logger.info("LAZY LOADING: PyTorch ripeness model...")
             pytorch_model = models.mobilenet_v2(weights=None)
             num_ftrs = pytorch_model.classifier[1].in_features
@@ -121,13 +159,17 @@ class ModelManager:
         return self.models['pytorch']
 
     def get_yolo_model(self):
+        """Lấy mô hình YOLO. Tải lười nếu chưa có trong bộ nhớ."""
         if 'yolo' not in self.models:
+            # Xóa các mô hình khác TRƯỚC KHI tải mô hình mới
+            self._clear_other_models(keep_key='yolo')
+
             logger.info("LAZY LOADING: YOLO detection model...")
             self.models['yolo'] = YOLO(config.DETECTOR_MODEL_PATH)
-            self.models['yolo'](np.zeros((*config.TARGET_SIZE, 3), dtype=np.uint8), verbose=False) # Warm-up
+            # "Warm-up"
+            self.models['yolo'](np.zeros((*config.TARGET_SIZE, 3), dtype=np.uint8), verbose=False) 
             logger.info("YOLO model loaded and warmed up.")
         return self.models['yolo']
-
 
 # Khởi tạo ngay sau khi định nghĩa class
 model_manager = ModelManager()
