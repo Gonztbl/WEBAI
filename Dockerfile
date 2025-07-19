@@ -56,7 +56,7 @@ RUN mkdir -p static/images && \
 USER appuser
 
 # Expose port
-EXPOSE 10000
+EXPOSE 
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=30s --start-period=60s --retries=3 \
