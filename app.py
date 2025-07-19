@@ -41,6 +41,7 @@ class Config:
 
     # Processing settings
     TARGET_SIZE = (224, 224)
+    MAX_IMAGE_DIMENSION = 1280 
     CONFIDENCE_THRESHOLD = 0.6
     ENSEMBLE_WEIGHTS = {
         'pytorch': 0.4,
@@ -261,6 +262,44 @@ class ImageProcessor:
         except Exception as e:
             logger.error(f"Error processing base64 image: {e}")
             return None, f"Lỗi xử lý ảnh từ camera: {str(e)}"
+    @staticmethod
+    def resize_image_if_needed(image_path):
+        """
+        Kiểm tra và thu nhỏ ảnh nếu nó quá lớn, ghi đè lên file gốc.
+        """
+        try:
+            with Image.open(image_path) as img:
+                width, height = img.size
+                max_dim = config.MAX_IMAGE_DIMENSION
+
+                # Chỉ resize nếu một trong hai chiều vượt quá giới hạn
+                if width > max_dim or height > max_dim:
+                    logger.info(f"Image is too large ({width}x{height}). Resizing to max dimension {max_dim}px.")
+                    
+                    # Giữ nguyên định dạng gốc của ảnh
+                    original_format = img.format
+
+                    # Tính toán tỷ lệ để giữ nguyên aspect ratio
+                    if width > height:
+                        new_width = max_dim
+                        new_height = int(height * (max_dim / width))
+                    else:
+                        new_height = max_dim
+                        new_width = int(width * (max_dim / height))
+
+                    # Sử dụng bộ lọc LANCZOS để cho chất lượng ảnh tốt nhất khi thu nhỏ
+                    resized_img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+                    
+                    # Lưu ảnh đã resize, ghi đè lên file cũ
+                    # Chuyển sang RGB nếu là ảnh PNG có kênh alpha để tránh lỗi khi lưu dưới dạng JPG
+                    if resized_img.mode in ("RGBA", "P"):
+                        resized_img = resized_img.convert("RGB")
+                        
+                    resized_img.save(image_path, format='JPEG', quality=95)
+                    logger.info(f"Image resized and saved to {new_width}x{new_height}.")
+                    
+        except Exception as e:
+            logger.error(f"Could not resize image at {image_path}: {e}")```
 
 
 # ==================== FRUIT DETECTION & ANALYSIS ====================
@@ -718,6 +757,7 @@ def success():
             error = "Vui lòng tải ảnh, nhập liên kết hoặc chụp ảnh từ camera."
 
         if img_path and not error:
+            ImageProcessor.resize_image_if_needed(img_path)
             logger.info(f"Starting analysis for image: {os.path.basename(img_path)}")
 
             # Step 1: Detect fruit with YOLO
