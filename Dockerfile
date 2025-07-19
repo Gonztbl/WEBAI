@@ -34,7 +34,7 @@ COPY . .
 RUN mkdir -p model && \
     cd model && \
     echo "Downloading model files..." && \
-    wget -q "${MODEL_URL}/fruit_state_classifier_new.h5" && \
+    wget -q "${MODEL_URL}/fruit_state_classifier.keras" && \
     wget -q "${MODEL_URL}/fruit_class_indices.json" && \
     wget -q "${MODEL_URL}/fruit_ripeness_model_pytorch.pth" && \
     wget -q "${MODEL_URL}/yolo11n.pt" && \
