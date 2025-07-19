@@ -17,7 +17,7 @@ RUN apt-get update && \
     libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
-# 2. Install Python dependencies (layer caching optimized)
+# 2. Install Python dependencies
 COPY requirements.txt .
 RUN pip install --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
@@ -25,18 +25,18 @@ RUN pip install --upgrade pip && \
 # 3. Copy application code
 COPY . .
 
-# 4. Download and VERIFY model files (Final Correct Hashes)
+# 4. Download and VERIFY model files (Final Version with .h5)
 RUN mkdir -p model && \
     cd model && \
     \
     echo "Downloading all models..." && \
-    wget -q "${MODEL_URL}/fruit_state_classifier.keras" && \
+    wget -q "${MODEL_URL}/fruit_state_classifier.h5" && \
     wget -q "${MODEL_URL}/yolov8l.pt" && \
     wget -q "${MODEL_URL}/fruit_ripeness_model_pytorch.pth" && \
     \
     echo "Verifying all checksums..." && \
     # Create the checksum file with correct hashes from local machine
-    echo "8ebe13c100c32f99911eb341e6b62f52c3f68974ab41915a15d1c6418869ce9a  fruit_state_classifier.keras" > checksums.txt && \
+    echo "2130a67de7b6a84da50f33f3716174a28fc6108b3214bb0c16fe3273e301e65c  fruit_state_classifier.h5" > checksums.txt && \
     echo "18218ea4798da042d9862e6029ca9531adbd40ace19b6c9a75e2e28f1adf30cc  yolov8l.pt" >> checksums.txt && \
     echo "48bf9333f4f07af2d02e3965f797fa56fa429d46b34d29d24e95dc925582e63d  fruit_ripeness_model_pytorch.pth" >> checksums.txt && \
     \
