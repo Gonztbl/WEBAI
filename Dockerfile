@@ -1,58 +1,49 @@
-# Use Python 3.10 slim image
+# Sử dụng Python 3.10 slim
 FROM python:3.10-slim
 
-# Set environment variables for memory optimization
+# Đặt các biến môi trường
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV MODEL_URL="https://github.com/Gonztbl/WEBAI/releases/download/v.1.1"
 ENV TF_CPP_MIN_LOG_LEVEL=3
 
-# Create working directory
-WORKDIR /app
-
-# Install system dependencies (minimal)
+# Cài đặt các gói hệ thống tối thiểu cần thiết
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-    libgl1-mesa-glx \
-    libglib2.0-0 \
-    libsm6 \
-    libxext6 \
-    libxrender1 \
     wget \
     curl && \
     rm -rf /var/lib/apt/lists/*
-# Copy requirements and install Python dependencies
-COPY requirements.txt .
-RUN pip install --upgrade pip && \
-    pip install torch==2.3.0 torchvision==0.18.0 --index-url https://download.pytorch.org/whl/cpu && \
-    pip install --no-cache-dir -r requirements.txt && \
-    pip cache purge
 
-# Copy application code
+# Tạo thư mục làm việc
+WORKDIR /app
+
+# ===> SỬA LỖI & TỐI ƯU HÓA: Đơn giản hóa toàn bộ quá trình cài đặt
+# Sao chép requirements.txt trước để tận dụng Docker cache
+COPY requirements.txt .
+
+# Chạy một lệnh pip install duy nhất. Nó sẽ tự động đọc --extra-index-url từ file.
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Sao chép phần còn lại của ứng dụng
 COPY . .
 
-# Download model files - PRIORITIZE .H5 FORMAT
+# Tải các mô hình
 RUN mkdir -p model && \
     cd model && \
-    echo "Downloading model files (prioritizing .h5 format)..." && \
-    echo "1. Downloading H5 model (.h5 format)..." && \
-    (wget -q "${MODEL_URL}/fruit_state_classifier_new.h5" && echo "✅ H5 model downloaded" || echo "❌ H5 model download failed") && \
-    echo "2. Downloading class indices (.json)..." && \
-    (wget -q "${MODEL_URL}/fruit_class_indices.json" && echo "✅ Class indices downloaded" || echo "❌ Class indices download failed") && \
-    echo "3. Downloading PyTorch model (.pth)..." && \
-    (wget -q "${MODEL_URL}/fruit_ripeness_model_pytorch.pth" && echo "✅ PyTorch model downloaded" || echo "❌ PyTorch model download failed") && \
-    echo "4. Downloading small YOLO model (.pt)..." && \
-    (wget -q "${MODEL_URL}/yolo11n.pt" && echo "✅ Small YOLO downloaded" || echo "❌ Small YOLO download failed") && \
-    echo "Download completed. Files in model directory:" && \
-    ls -la
+    echo "Downloading model files..." && \
+    wget -q "${MODEL_URL}/fruit_state_classifier_new.h5" && \
+    wget -q "${MODEL_URL}/fruit_class_indices.json" && \
+    wget -q "${MODEL_URL}/fruit_ripeness_model_pytorch.pth" && \
+    wget -q "${MODEL_URL}/yolo11n.pt" && \
+    echo "Download completed."
 
-# Create directories and set permissions
+# Tạo thư mục và thiết lập quyền
 RUN mkdir -p static/images && \
     chmod -R 755 static && \
     useradd -m appuser && \
     chown -R appuser:appuser /app
 
-# Switch to non-root user
+# Chuyển sang người dùng không phải root
 USER appuser
 
 # Expose port
@@ -62,14 +53,9 @@ EXPOSE 5000
 HEALTHCHECK --interval=30s --timeout=30s --start-period=60s --retries=3 \
     CMD curl -f http://localhost:5000/health || exit 1
 
-# FIXED: Use existing app.py instead of app_fixed_h5.py
-# CMD for Production with asynchronous workers
+# Lệnh CMD cuối cùng đã được tối ưu cho Lazy Loading trên Render Free Tier
 CMD ["gunicorn", "--bind", "0.0.0.0:5000", \
+     "--workers", "1", \
      "--worker-class", "gevent", \
-     "--workers", "3", \
-     "--timeout", "300", \
-     "--max-requests", "1000", \
-     "--max-requests-jitter", "50", \
-     "--access-logfile", "-", \
-     "--error-logfile", "-", \
+     "--timeout", "120", \
      "app:app"]
