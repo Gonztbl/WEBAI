@@ -13,7 +13,8 @@ from PIL import Image, ImageDraw, ImageFont
 import os
 import uuid
 import logging
-
+from enum import Enum  # <== THÊM DÒNG NÀY
+from dataclasses import dataclass # <== VÀ DÒNG NÀY
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
