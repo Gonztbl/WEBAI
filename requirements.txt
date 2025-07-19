@@ -1,14 +1,29 @@
---index-url https://download.pytorch.org/whl/cpu
+# ===> SỬA LỖI: Dùng --extra-index-url để pip tìm cả ở PyPI và nguồn PyTorch
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+# === Core Dependencies ===
 python-dotenv==1.0.0
+
+# === Web Framework ===
 Flask==2.3.3
 gunicorn==21.2.0
+
+# === Image Processing ===
 Pillow==10.1.0
+
+# === Machine Learning ===
+# PyTorch + TorchVision (sẽ được lấy từ extra-index-url)
 torch==2.3.0
 torchvision==0.18.0
+
+# TensorFlow (sẽ được lấy từ PyPI)
 tensorflow-cpu==2.16.1
 h5py==3.11.0
+
+# YOLO
 ultralytics==8.2.2
+
+# === Utilities ===
 numpy==1.26.4
 requests==2.31.0
 webcolors==1.13
-
