@@ -25,18 +25,18 @@ RUN pip install --upgrade pip && \
 # 3. Copy application code
 COPY . .
 
-# 4. Download and VERIFY model files (Final Version with .h5)
+# 4. Download and VERIFY model files (Final Version with Weights)
 RUN mkdir -p model && \
     cd model && \
     \
     echo "Downloading all models..." && \
-    wget -q "${MODEL_URL}/fruit_state_classifier.h5" && \
+    wget -q "${MODEL_URL}/fruit_state_classifier.weights.h5" && \
     wget -q "${MODEL_URL}/yolov8l.pt" && \
     wget -q "${MODEL_URL}/fruit_ripeness_model_pytorch.pth" && \
     \
     echo "Verifying all checksums..." && \
     # Create the checksum file with correct hashes from local machine
-    echo "2130a67de7b6a84da50f33f3716174a28fc6108b3214bb0c16fe3273e301e65c  fruit_state_classifier.h5" > checksums.txt && \
+    echo "54fe888391e8ff7a70f72134e7b2361b6f7b67e76c472b2af71cd2ec1bf76c8b  fruit_state_classifier.weights.h5" > checksums.txt && \
     echo "18218ea4798da042d9862e6029ca9531adbd40ace19b6c9a75e2e28f1adf30cc  yolov8l.pt" >> checksums.txt && \
     echo "48bf9333f4f07af2d02e3965f797fa56fa429d46b34d29d24e95dc925582e63d  fruit_ripeness_model_pytorch.pth" >> checksums.txt && \
     \
