@@ -2,6 +2,7 @@
 import os
 import io
 import uuid
+import json
 import logging
 from pathlib import Path
 from flask import Flask, render_template, request
@@ -59,24 +60,50 @@ IMAGES_DIR = BASE_DIR / "static" / "images"
 IMAGES_DIR.mkdir(parents=True, exist_ok=True)
 MODEL_DIR = BASE_DIR / 'model'
 
-# ===== MODEL PATHS =====
-KERAS_MODEL_PATH = MODEL_DIR / 'fruit_state_classifier_new.h5'
+# ===== CORRECT MODEL PATHS FROM TRAINING SCRIPT =====
+KERAS_MODEL_PATH = MODEL_DIR / 'fruit_state_classifier.keras'  # ← CORRECT FORMAT!
+CLASS_INDICES_PATH = MODEL_DIR / 'fruit_class_indices.json'    # ← CLASS MAPPING!
 PYTORCH_MODEL_PATH = MODEL_DIR / 'fruit_ripeness_model_pytorch.pth'
 YOLO_MODEL_PATH = MODEL_DIR / 'yolov8l.pt'
 
-FRESHNESS_CLASSES = ['Táo Tươi', 'Chuối Tươi', 'Cam Tươi', 'Táo Hỏng', 'Chuối Hỏng', 'Cam Hỏng']
+# Default classes (fallback if JSON not available)
+DEFAULT_FRESHNESS_CLASSES = ['Táo Tươi', 'Chuối Tươi', 'Cam Tươi', 'Táo Hỏng', 'Chuối Hỏng', 'Cam Hỏng']
 RIPENESS_CLASSES = ['Apple Ripe', 'Apple Unripe', 'Banana Ripe', 'Banana Unripe', 'Orange Ripe', 'Orange Unripe']
 ALLOWED_EXT = {'jpg', 'jpeg', 'png', 'jfif'}
 
-# Global models
+# Global variables
 keras_model = None
 pytorch_model = None
 yolo_model = None
+freshness_classes = DEFAULT_FRESHNESS_CLASSES
+
+# ===== LOAD CLASS INDICES =====
+def load_class_indices():
+    """Load class indices from JSON file created during training"""
+    global freshness_classes
+    
+    if CLASS_INDICES_PATH.exists():
+        try:
+            with open(CLASS_INDICES_PATH, 'r') as f:
+                class_indices = json.load(f)
+            
+            # Convert to list in correct order
+            freshness_classes = [class_indices[str(i)] for i in range(len(class_indices))]
+            logger.info(f"✅ Loaded class indices: {freshness_classes}")
+            return freshness_classes
+        except Exception as e:
+            logger.error(f"❌ Failed to load class indices: {e}")
+    else:
+        logger.warning(f"❌ Class indices file not found: {CLASS_INDICES_PATH}")
+    
+    logger.info(f"Using default classes: {DEFAULT_FRESHNESS_CLASSES}")
+    freshness_classes = DEFAULT_FRESHNESS_CLASSES
+    return freshness_classes
 
 # ===== SIMPLE FALLBACK CLASSIFIER =====
 class SimpleFruitClassifier:
-    def __init__(self):
-        self.classes = FRESHNESS_CLASSES
+    def __init__(self, classes):
+        self.classes = classes
         logger.info("Using simple fallback classifier")
     
     def predict(self, image_array):
@@ -95,53 +122,34 @@ class SimpleFruitClassifier:
             else:  # Dark image - possibly spoiled
                 return np.array([0.05, 0.05, 0.05, 0.35, 0.30, 0.20])  # Spoiled fruits
         except:
-            return np.array([1/6] * 6)
+            return np.array([1/len(self.classes)] * len(self.classes))
 
-# ===== MODEL LOADING WITH BETTER ERROR HANDLING =====
+# ===== MODEL LOADING =====
 def load_keras_model():
-    """Load Keras model with better error handling"""
+    """Load Keras model in .keras format (from training script)"""
     if not TENSORFLOW_AVAILABLE:
         logger.warning("TensorFlow not available")
-        return SimpleFruitClassifier()
+        return SimpleFruitClassifier(freshness_classes)
     
     if KERAS_MODEL_PATH.exists():
         try:
             logger.info(f"Loading Keras model: {KERAS_MODEL_PATH}")
             
-            # Try loading with compile=False to avoid optimizer issues
-            model = load_model(str(KERAS_MODEL_PATH), compile=False)
+            # Load model in .keras format (TensorFlow 2.x native format)
+            model = load_model(str(KERAS_MODEL_PATH))
             
-            # Recompile the model
-            model.compile(
-                optimizer='adam',
-                loss='categorical_crossentropy',
-                metrics=['accuracy']
-            )
-            
-            logger.info("✅ Keras model loaded successfully")
+            logger.info("✅ Keras model (.keras format) loaded successfully")
+            logger.info(f"Model input shape: {model.input_shape}")
+            logger.info(f"Model output shape: {model.output_shape}")
             return model
             
         except Exception as e:
             logger.error(f"❌ Failed to load Keras model: {e}")
-            
-            # Try with custom_objects to handle unknown layers
-            try:
-                logger.info("Trying to load with custom_objects...")
-                model = load_model(str(KERAS_MODEL_PATH), compile=False, custom_objects={})
-                model.compile(
-                    optimizer='adam',
-                    loss='categorical_crossentropy',
-                    metrics=['accuracy']
-                )
-                logger.info("✅ Keras model loaded with custom_objects")
-                return model
-            except Exception as e2:
-                logger.error(f"❌ Failed with custom_objects: {e2}")
     else:
         logger.warning(f"❌ Keras model not found: {KERAS_MODEL_PATH}")
     
     logger.info("Using enhanced simple fallback classifier")
-    return SimpleFruitClassifier()
+    return SimpleFruitClassifier(freshness_classes)
 
 def load_pytorch_model():
     """Load PyTorch model"""
@@ -201,15 +209,19 @@ def load_yolo_model():
         return None
 
 def initialize_models():
-    """Initialize all 3 models"""
-    global keras_model, pytorch_model, yolo_model
+    """Initialize all models"""
+    global keras_model, pytorch_model, yolo_model, freshness_classes
     
     logger.info("🚀 Initializing models...")
+    
+    # Load class indices first
+    freshness_classes = load_class_indices()
     
     # Check which files exist
     logger.info("Checking model files:")
     for name, path in [
-        ("Keras (.h5)", KERAS_MODEL_PATH),
+        ("Keras (.keras)", KERAS_MODEL_PATH),
+        ("Class indices (.json)", CLASS_INDICES_PATH),
         ("PyTorch (.pth)", PYTORCH_MODEL_PATH),
         ("YOLO (.pt)", YOLO_MODEL_PATH)
     ]:
@@ -291,13 +303,13 @@ def draw_bounding_box(image_path, bbox):
         return None
 
 def predict_freshness(image_path):
-    """Predict fruit freshness"""
+    """Predict fruit freshness using Keras model"""
     try:
         if keras_model is None:
             return ["Model không khả dụng"], [0]
         
         if hasattr(keras_model, 'predict'):
-            # Keras model
+            # Real Keras model
             img = load_img(image_path, target_size=(224, 224))
             img = img_to_array(img).reshape(1, 224, 224, 3).astype('float32') / 255.0
             preds = keras_model.predict(img, verbose=0)[0]
@@ -309,7 +321,7 @@ def predict_freshness(image_path):
         
         top = preds.argsort()[::-1][:3]
         return (
-            [FRESHNESS_CLASSES[i] for i in top],
+            [freshness_classes[i] for i in top],
             [(preds[i] * 100) for i in top]
         )
     except Exception as e:
@@ -349,14 +361,19 @@ def health_check():
     return {
         "status": "healthy",
         "models": {
-            "keras_h5": keras_model is not None,
-            "pytorch_pth": pytorch_model is not None,
-            "yolo_pt": yolo_model is not None
+            "keras_model": keras_model is not None,
+            "pytorch_model": pytorch_model is not None,
+            "yolo_model": yolo_model is not None
         },
         "model_files": {
-            "keras_h5_exists": KERAS_MODEL_PATH.exists(),
-            "pytorch_pth_exists": PYTORCH_MODEL_PATH.exists(),
-            "yolo_pt_exists": YOLO_MODEL_PATH.exists()
+            "keras_exists": KERAS_MODEL_PATH.exists(),
+            "class_indices_exists": CLASS_INDICES_PATH.exists(),
+            "pytorch_exists": PYTORCH_MODEL_PATH.exists(),
+            "yolo_exists": YOLO_MODEL_PATH.exists()
+        },
+        "classes": {
+            "freshness_classes": freshness_classes,
+            "ripeness_classes": RIPENESS_CLASSES
         },
         "model_types": {
             "keras_type": type(keras_model).__name__ if keras_model else "None",
@@ -408,23 +425,23 @@ def success():
                 original_img.save(str(IMAGES_DIR / detected_img))
             
             # Predictions
-            freshness_classes, freshness_probs = predict_freshness(img_path)
+            freshness_classes_pred, freshness_probs = predict_freshness(img_path)
             ripeness_pred, ripeness_conf = predict_ripeness(img_path)
             
             # Ensure enough data
-            while len(freshness_classes) < 3:
-                freshness_classes.append("N/A")
+            while len(freshness_classes_pred) < 3:
+                freshness_classes_pred.append("N/A")
                 freshness_probs.append(0)
             
             predictions = {
                 "pytorch_prediction": ripeness_pred,
                 "pytorch_confidence": ripeness_conf,
                 "color_ripeness": "Phân tích màu sắc cơ bản",
-                "freshness_class1": freshness_classes[0],
+                "freshness_class1": freshness_classes_pred[0],
                 "freshness_prob1": freshness_probs[0],
-                "freshness_class2": freshness_classes[1],
+                "freshness_class2": freshness_classes_pred[1],
                 "freshness_prob2": freshness_probs[1],
-                "freshness_class3": freshness_classes[2],
+                "freshness_class3": freshness_classes_pred[2],
                 "freshness_prob3": freshness_probs[2],
             }
             
