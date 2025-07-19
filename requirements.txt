@@ -7,7 +7,7 @@ python-dotenv==1.0.0
 # === Web Framework ===
 Flask==2.3.3
 gunicorn==21.2.0
-
+gevent
 # === Image Processing ===
 Pillow==10.1.0
 
