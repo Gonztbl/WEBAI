@@ -4,6 +4,8 @@ FROM python:3.10-slim
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
+# NOTE: The release version in the URL might need to be updated if you created a new one.
+# This assumes you edited the existing v.1.1 release.
 ENV MODEL_URL="https://github.com/Gonztbl/WEBAI/releases/download/v.1.1"
 
 # Create and set working directory
@@ -25,19 +27,19 @@ RUN pip install --upgrade pip && \
 # 3. Copy application code
 COPY . .
 
-# 4. Download and VERIFY model files with checksums (Final Robust Method)
+# 4. Download and VERIFY model files with checksums (Corrected for yolov8l.pt)
 RUN mkdir -p model && \
     cd model && \
     \
     echo "Downloading all models..." && \
     wget -q "${MODEL_URL}/fruit_state_classifier.keras" && \
-    wget -q "${MODEL_URL}/yolo11n.pt" && \
+    wget -q "${MODEL_URL}/yolov8l.pt" && \
     wget -q "${MODEL_URL}/fruit_ripeness_model_pytorch.pth" && \
     \
     echo "Verifying all checksums..." && \
     # Create the checksum file with proper Unix line endings inside the container
     echo "8ebe13c100c32f99911eb341e6b6278832a8848c909675239a587428803a6b5a3  fruit_state_classifier.keras" > checksums.txt && \
-    echo "0ebbc80d4a7680d14987a577cd213c415555462589574163013a241e3d30925e  yolo11n.pt" >> checksums.txt && \
+    echo "18218ea4798da042d9862e6029ca9df10a831e71520698114f76269acb4df894  yolov8l.pt" >> checksums.txt && \
     echo "48bf9333f4f07af2d02e3965f797f53f06b6b553e414c99736e4f165a6e87b7a6  fruit_ripeness_model_pytorch.pth" >> checksums.txt && \
     \
     # Verify against the newly created file
