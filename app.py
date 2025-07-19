@@ -29,7 +29,7 @@ class Config:
     CLASSIFIER_MODEL_PATH = os.path.join(MODEL_DIR, 'fruit_state_classifier_new.h5')
     DETECTOR_MODEL_PATH = os.path.join(MODEL_DIR, 'yolo11n.pt')
     RIPENESS_MODEL_PATH = os.path.join(MODEL_DIR, 'fruit_ripeness_model_pytorch.pth')
-
+    FRESHNESS_CLASSES_FALLBACK = ['Táo Tươi', 'Chuối Tươi', 'Cam Tươi', 'Táo Hỏng', 'Chuối Hỏng', 'Cam Hỏng']
     # Classes
     FRESHNESS_CLASSES = ['Táo Tươi', 'Chuối Tươi', 'Cam Tươi', 'Táo Hỏng', 'Chuối Hỏng', 'Cam Hỏng']
     RIPENESS_CLASSES = ['Apple Ripe', 'Apple Unripe', 'Banana Ripe', 'Banana Unripe', 'Orange Ripe', 'Orange Unripe']
@@ -77,7 +77,9 @@ class ModelManager:
         self.models = {}
         # Mới: Khởi tạo danh sách nhãn Keras
         self.keras_class_names_vietnamese = []
+        self.tf_graph = None
         self.load_models()
+        
 
     # THAY THẾ TOÀN BỘ HÀM CŨ BẰNG HÀM NÀY
     def _load_keras_class_names(self):
