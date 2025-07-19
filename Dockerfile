@@ -66,7 +66,7 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=60s --retries=3 \
 CMD ["gunicorn", "--bind", "0.0.0.0:5000", \
      "--workers", "1", \
      "--threads", "1", \
-     "--timeout", "300", \
+     "--timeout", "3000", \
      "--max-requests", "100", \
      "--max-requests-jitter", "10", \
      "--preload", \
