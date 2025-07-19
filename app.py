@@ -68,16 +68,13 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-
-# ==================== MODEL MANAGER ====================
 # ==================== MODEL MANAGER ====================
 class ModelManager:
     def __init__(self):
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.models = {}
-        # Mới: Khởi tạo danh sách nhãn Keras
         self.keras_class_names_vietnamese = []
-        self.tf_graph = None
+        # Bỏ self.tf_graph vì không cần thiết nữa
         self.load_models()
         
 
@@ -127,22 +124,16 @@ class ModelManager:
         except Exception as e:
             logger.error(f"Error loading Keras class indices: {e}")
             raise
-    # Trong class ModelManager
-
-            # Trong class ModelManager
     def load_models(self):
         try:
-            # Load Keras model
+            # 1. Load Keras model
             logger.info("Loading Keras freshness model...")
-            self.models['keras'] = load_model(config.CLASSIFIER_MODEL_PATH,compile=False)
-            # THÊM BƯỚC KHỞI ĐỘNG ĐỂ TĂNG TÍNH ỔN ĐỊNH
+            self.models['keras'] = load_model(config.CLASSIFIER_MODEL_PATH, compile=False)
             self.models['keras'].predict(np.zeros((1, *config.TARGET_SIZE, 3)))
             logger.info("Keras model initialized with a warm-up prediction.")
-
-            # Tải nhãn cho mô hình Keras
             self._load_keras_class_names()
 
-            # Load PyTorch model
+            # 2. Load PyTorch model
             logger.info("Loading PyTorch ripeness model...")
             pytorch_model = models.mobilenet_v2(weights=None)
             num_ftrs = pytorch_model.classifier[1].in_features
@@ -152,6 +143,13 @@ class ModelManager:
             )
             pytorch_model.load_state_dict(torch.load(config.RIPENESS_MODEL_PATH, map_location=self.device))
             self.models['pytorch'] = pytorch_model.to(self.device).eval()
+
+            # 3. THÊM VÀO: Load YOLO model
+            logger.info("Loading YOLO detection model...")
+            self.models['yolo'] = YOLO(config.DETECTOR_MODEL_PATH)
+            # Chạy thử một lần để "warm-up"
+            self.models['yolo'](np.zeros((*config.TARGET_SIZE, 3), dtype=np.uint8), verbose=False)
+            logger.info("YOLO model initialized with a warm-up prediction.")
 
             logger.info("All models loaded successfully!")
 
