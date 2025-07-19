@@ -15,6 +15,7 @@ from dominant_color import AdvancedColorAnalyzer, ColorAnalysisResult, RipenessS
 from ultralytics import YOLO
 import cv2
 import base64
+from flask import make_response
 
 
 # ==================== CONFIGURATION ====================
