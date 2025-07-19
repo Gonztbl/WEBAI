@@ -70,7 +70,6 @@ CMD ["gunicorn", "--bind", "0.0.0.0:5000", \
      "--timeout", "300", \
      "--max-requests", "1000", \
      "--max-requests-jitter", "50", \
-     "--preload", \
      "--access-logfile", "-", \
      "--error-logfile", "-", \
      "app:app"]
