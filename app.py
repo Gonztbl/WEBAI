@@ -25,7 +25,7 @@ class Config:
     MODEL_DIR = os.path.join(BASE_DIR, 'model')
     CLASS_INDICES_PATH = os.path.join(MODEL_DIR, 'fruit_class_indices.json')
     # Model paths
-    CLASSIFIER_MODEL_PATH = os.path.join(MODEL_DIR, 'fruit_state_classifier_new.h5')
+    CLASSIFIER_MODEL_PATH = os.path.join(MODEL_DIR, 'fruit_state_classifier.keras')
     DETECTOR_MODEL_PATH = os.path.join(MODEL_DIR, 'yolo11n.pt')
     RIPENESS_MODEL_PATH = os.path.join(MODEL_DIR, 'fruit_ripeness_model_pytorch.pth')
     FRESHNESS_CLASSES_FALLBACK = ['Táo Tươi', 'Chuối Tươi', 'Cam Tươi', 'Táo Hỏng', 'Chuối Hỏng', 'Cam Hỏng']
