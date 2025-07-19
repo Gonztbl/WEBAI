@@ -1,74 +1,714 @@
 <!DOCTYPE html>
-<html lang="eng">
-
+<html lang="vi">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <title>🍎 Hệ Thống Phân Tích Trái Cây AI - Chuyên Nghiệp</title>
 
+    <!-- Bootstrap 5 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 
-    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/css/bootstrap.min.css">
-    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
-    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/js/bootstrap.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,100;0,300;0,400;1,300&display=swap"
-          rel="stylesheet" type='text/css'>
-    <title>Image Classification WebApp</title>
-    <meta name="keywords" content="cutom file input, styling, label, cross-browser, accessible, input type file"/>
+    <style>
+        :root {
+            --primary-color: #10b981;
+            --secondary-color: #3b82f6;
+            --accent-color: #f59e0b;
+            --danger-color: #ef4444;
+            --dark-color: #1f2937;
+            --light-bg: #f8fafc;
+            --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --gradient-card: linear-gradient(135deg, rgba(255,255,255,0.95), rgba(255,255,255,0.9));
+        }
 
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--gradient-primary);
+            min-height: 100vh;
+            position: relative;
+        }
 
+        .main-container {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            padding: 2rem 0;
+        }
+
+        .hero-section {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        .hero-title {
+            font-size: 3.5rem;
+            font-weight: 700;
+            color: white;
+            margin-bottom: 1rem;
+            text-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .hero-subtitle {
+            font-size: 1.25rem;
+            color: rgba(255, 255, 255, 0.9);
+            margin-bottom: 2rem;
+            max-width: 700px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .main-card {
+            background: var(--gradient-card);
+            backdrop-filter: blur(20px);
+            border-radius: 25px;
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            overflow: hidden;
+        }
+
+        .card-header-custom {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            padding: 2.5rem;
+            text-align: center;
+            position: relative;
+        }
+
+        .card-header-custom::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="25" cy="25" r="1" fill="rgba(255,255,255,0.1)"/><circle cx="75" cy="75" r="1" fill="rgba(255,255,255,0.1)"/></pattern></defs><rect width="100" height="100" fill="url(%23grain)"/></svg>');
+            opacity: 0.3;
+        }
+
+        .upload-section {
+            padding: 2.5rem;
+        }
+
+        .nav-pills-custom .nav-link {
+            border-radius: 50px;
+            padding: 1rem 2rem;
+            margin: 0 0.5rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .nav-pills-custom .nav-link:not(.active) {
+            color: var(--dark-color);
+            background: var(--light-bg);
+        }
+
+        .nav-pills-custom .nav-link.active {
+            background: var(--primary-color);
+            color: white;
+            transform: translateY(-3px);
+            box-shadow: 0 10px 30px rgba(16, 185, 129, 0.4);
+        }
+
+        .upload-area {
+            border: 3px dashed #d1d5db;
+            border-radius: 20px;
+            padding: 4rem 2rem;
+            text-align: center;
+            transition: all 0.3s ease;
+            background: var(--light-bg);
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .upload-area:hover {
+            border-color: var(--primary-color);
+            background: rgba(16, 185, 129, 0.05);
+            transform: translateY(-5px);
+        }
+
+        .upload-area.dragover {
+            border-color: var(--primary-color);
+            background: rgba(16, 185, 129, 0.1);
+            transform: scale(1.02);
+        }
+
+        .upload-icon {
+            font-size: 5rem;
+            color: var(--primary-color);
+            margin-bottom: 1.5rem;
+            animation: float 3s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .btn-custom {
+            border-radius: 50px;
+            padding: 1rem 2.5rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            transition: all 0.3s ease;
+            border: none;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-primary-custom {
+            background: linear-gradient(135deg, var(--primary-color), #059669);
+            color: white;
+        }
+
+        .btn-primary-custom:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 35px rgba(16, 185, 129, 0.4);
+        }
+
+        .btn-secondary-custom {
+            background: linear-gradient(135deg, var(--secondary-color), #2563eb);
+            color: white;
+        }
+
+        .btn-secondary-custom:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 35px rgba(59, 130, 246, 0.4);
+        }
+
+        .btn-warning-custom {
+            background: linear-gradient(135deg, var(--accent-color), #d97706);
+            color: white;
+        }
+
+        .btn-warning-custom:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 35px rgba(245, 158, 11, 0.4);
+        }
+
+        .form-control-custom {
+            border-radius: 15px;
+            border: 2px solid #e5e7eb;
+            padding: 1rem 1.5rem;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .form-control-custom:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 0.2rem rgba(16, 185, 129, 0.25);
+        }
+
+        .camera-container {
+            text-align: center;
+            padding: 2rem;
+        }
+
+        .camera-selection {
+            margin-bottom: 2rem;
+        }
+
+        .camera-option {
+            display: inline-block;
+            margin: 0 1rem;
+            padding: 1rem 2rem;
+            border: 2px solid #e5e7eb;
+            border-radius: 15px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: white;
+        }
+
+        .camera-option:hover {
+            border-color: var(--primary-color);
+            background: rgba(16, 185, 129, 0.05);
+        }
+
+        .camera-option.selected {
+            border-color: var(--primary-color);
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .camera-video {
+            border-radius: 20px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
+            max-width: 100%;
+            margin-bottom: 1.5rem;
+        }
+
+        .preview-image {
+            max-width: 350px;
+            border-radius: 20px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
+            margin-bottom: 1.5rem;
+        }
+
+        .alert-custom {
+            border-radius: 15px;
+            border: none;
+            padding: 1.5rem 2rem;
+            margin-bottom: 2rem;
+            backdrop-filter: blur(10px);
+        }
+
+        .features-section {
+            margin-top: 3rem;
+            text-align: center;
+        }
+
+        .feature-badge {
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 50px;
+            margin: 0.5rem;
+            font-weight: 600;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+        }
+
+        .feature-badge:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .fade-in {
+            animation: fadeIn 0.8s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .quality-indicators {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            margin-top: 2rem;
+            flex-wrap: wrap;
+        }
+
+        .quality-item {
+            text-align: center;
+            color: white;
+        }
+
+        .quality-icon {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+            display: block;
+        }
+
+        @media (max-width: 768px) {
+            .hero-title {
+                font-size: 2.5rem;
+            }
+
+            .upload-area {
+                padding: 2rem 1rem;
+            }
+
+            .main-card {
+                margin: 1rem;
+            }
+
+            .nav-pills-custom .nav-link {
+                padding: 0.75rem 1.5rem;
+                margin: 0.25rem;
+            }
+
+            .quality-indicators {
+                gap: 1rem;
+            }
+        }
+    </style>
 </head>
 
 <body>
-<div class="bg-img">
-    <div class="content">
-        <div class="index-main">
+    <div class="main-container">
+        <div class="container">
+            <!-- Hero Section -->
+            <div class="hero-section fade-in">
+                <h1 class="hero-title">🍎 Hệ Thống Phân Tích Trái Cây AI</h1>
+                <p class="hero-subtitle">
+                    Công nghệ AI tiên tiến với độ chính xác cao, phân tích toàn diện về độ tươi, độ chín và phân loại trái cây chuyên nghiệp
+                </p>
 
-            <div style="width : 100%; padding-top : 5%;">
-                <div class="header-content">
-                    <h1 style="text-align: center;color: white"><span class="header-content-text">BTL XỬ LÝ ẢNH</span>
-                    </h1>
+                <div class="quality-indicators">
+                    <div class="quality-item">
+                        <i class="fas fa-brain quality-icon"></i>
+                        <small>AI Ensemble</small>
+                    </div>
+                    <div class="quality-item">
+                        <i class="fas fa-eye quality-icon"></i>
+                        <small>Computer Vision</small>
+                    </div>
+                    <div class="quality-item">
+                        <i class="fas fa-chart-line quality-icon"></i>
+                        <small>95%+ Accuracy</small>
+                    </div>
+                    <div class="quality-item">
+                        <i class="fas fa-bolt quality-icon"></i>
+                        <small>Real-time</small>
+                    </div>
                 </div>
             </div>
 
-            <div class="upload-section">
-
-                <div class="upload-file">
-                    <form class="file-form" action="/success" method="post"  enctype="multipart/form-data">
-                        <input class="file-form-input" type="file" , name="file"/>
-                        <button class="btn btn-success btn-lg">Nhận diện</button>
-                    </form>
+            <!-- Main Card -->
+            <div class="main-card fade-in">
+                <div class="card-header-custom">
+                    <h2 class="mb-0"><i class="fas fa-microscope me-2"></i>Phân Tích Thông Minh Đa Mô Hình</h2>
+                    <p class="mb-0 mt-2 opacity-90">PyTorch • Keras • YOLO • Color Analysis • Ensemble Learning</p>
                 </div>
 
-                <div class="uploadOR">
-                    <span>HOẶC</span>
-                </div>
+                <div class="upload-section">
+                    <!-- Error Alert -->
+                    {% if error %}
+                    <div class="alert alert-danger alert-custom" role="alert">
+                        <i class="fas fa-exclamation-triangle me-2"></i>{{ error }}
+                    </div>
+                    {% endif %}
 
-<div class="upload-link">
-    <form class="link-form" action="/success" method="post">
-        <input class="link-form-input" type="text" maxlength="1000" name="link"
-               placeholder="Dán đường dẫn link ảnh vào đây"/>
-        <button class="btn btn-success btn-lg">Nhận diện</button>
-    </form>
-</div>
-                <div class="header-content-sub">
-                    <p style="text-align: center; margin-top: 15px;color: red" class="header-content-info">{{error}}</p>
+                    <!-- Navigation Tabs -->
+                    <ul class="nav nav-pills nav-pills-custom justify-content-center mb-4" id="uploadTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="file-tab" data-bs-toggle="pill" data-bs-target="#file-upload" type="button" role="tab">
+                                <i class="fas fa-upload me-2"></i>Tải File
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="url-tab" data-bs-toggle="pill" data-bs-target="#url-upload" type="button" role="tab">
+                                <i class="fas fa-link me-2"></i>URL Ảnh
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="camera-tab" data-bs-toggle="pill" data-bs-target="#camera-upload" type="button" role="tab">
+                                <i class="fas fa-camera me-2"></i>Camera
+                            </button>
+                        </li>
+                    </ul>
+
+                    <!-- Tab Content -->
+                    <div class="tab-content" id="uploadTabsContent">
+                        <!-- File Upload -->
+                        <div class="tab-pane fade show active" id="file-upload" role="tabpanel">
+                            <form action="/success" method="post" enctype="multipart/form-data" id="fileForm">
+                                <div class="upload-area" id="uploadArea">
+                                    <div id="uploadContent">
+                                        <i class="fas fa-cloud-upload-alt upload-icon"></i>
+                                        <h4 class="mb-3">Kéo thả ảnh vào đây hoặc nhấp để chọn</h4>
+                                        <p class="text-muted mb-3">Hỗ trợ: JPG, PNG, JPEG, WEBP (tối đa 10MB)</p>
+                                        <input type="file" name="file" id="fileInput" accept="image/*" style="display: none;">
+                                        <button type="button" class="btn btn-primary-custom btn-custom" onclick="document.getElementById('fileInput').click()">
+                                            <i class="fas fa-folder-open me-2"></i>Chọn Ảnh
+                                        </button>
+                                    </div>
+                                    <div id="previewContent" style="display: none;">
+                                        <img id="previewImage" class="preview-image" alt="Preview">
+                                        <div class="mt-3">
+                                            <button type="submit" class="btn btn-primary-custom btn-custom me-2" id="analyzeBtn">
+                                                <i class="fas fa-microscope me-2"></i>Phân Tích AI
+                                            </button>
+                                            <button type="button" class="btn btn-secondary btn-custom" onclick="resetFileUpload()">
+                                                <i class="fas fa-times me-2"></i>Hủy
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+
+                        <!-- URL Upload -->
+                        <div class="tab-pane fade" id="url-upload" role="tabpanel">
+                            <form action="/success" method="post" id="urlForm">
+                                <div class="mb-4">
+                                    <label for="imageUrl" class="form-label fw-bold">
+                                        <i class="fas fa-link me-2"></i>Đường dẫn ảnh
+                                    </label>
+                                    <input type="url" class="form-control form-control-custom" name="link" id="imageUrl"
+                                           placeholder="https://example.com/image.jpg" required>
+                                    <div class="form-text">
+                                        <i class="fas fa-info-circle me-1"></i>
+                                        Nhập URL trực tiếp đến file ảnh (JPG, PNG, WEBP)
+                                    </div>
+                                </div>
+                                <div class="text-center">
+                                    <button type="submit" class="btn btn-secondary-custom btn-custom" id="urlAnalyzeBtn">
+                                        <i class="fas fa-download me-2"></i>Tải và Phân Tích
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+
+                        <!-- Camera Upload -->
+                        <div class="tab-pane fade" id="camera-upload" role="tabpanel">
+                            <div class="camera-container">
+                                <!-- Camera Selection -->
+                                <div class="camera-selection" id="cameraSelection">
+                                    <h5 class="mb-3"><i class="fas fa-camera me-2"></i>Chọn Camera</h5>
+                                    <div class="camera-option" data-facing="user" onclick="selectCamera('user')">
+                                        <i class="fas fa-user-circle fa-2x mb-2"></i>
+                                        <div>Camera Trước</div>
+                                        <small class="text-muted">Selfie</small>
+                                    </div>
+                                    <div class="camera-option selected" data-facing="environment" onclick="selectCamera('environment')">
+                                        <i class="fas fa-camera fa-2x mb-2"></i>
+                                        <div>Camera Sau</div>
+                                        <small class="text-muted">Chính</small>
+                                    </div>
+                                </div>
+
+                                <div id="cameraStart">
+                                    <button type="button" class="btn btn-warning-custom btn-custom" onclick="startCamera()">
+                                        <i class="fas fa-video me-2"></i>Bật Camera
+                                    </button>
+                                </div>
+
+                                <div id="cameraActive" style="display: none;">
+                                    <video id="video" class="camera-video" autoplay playsinline muted></video>
+                                    <canvas id="canvas" style="display: none;"></canvas>
+                                    <div class="mt-3">
+                                        <button type="button" class="btn btn-primary-custom btn-custom me-2" onclick="capturePhoto()">
+                                            <i class="fas fa-camera me-2"></i>Chụp Ảnh
+                                        </button>
+                                        <button type="button" class="btn btn-secondary btn-custom" onclick="stopCamera()">
+                                            <i class="fas fa-stop me-2"></i>Tắt Camera
+                                        </button>
+                                    </div>
+
+                                    <form action="/success" method="post" enctype="multipart/form-data" id="cameraForm" style="display: none;">
+                                        <input type="hidden" name="camera_image" id="camera_image">
+                                        <button type="submit" class="btn btn-primary-custom btn-custom mt-3" id="cameraAnalyzeBtn">
+                                            <i class="fas fa-microscope me-2"></i>Phân Tích AI
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <div class="footer">
-                <div class="header-content-sub">
-                    <p style="text-align: center;color: white" class="header-content-info">Phân loại hoa quả và Nhận
-                        diện tình trạng tươi héo, xanh chín của hoa quả</p>
+            <!-- Features Section -->
+            <div class="features-section fade-in">
+                <div class="feature-badge">
+                    <i class="fas fa-apple-alt me-2"></i>🍎 Táo
                 </div>
-                <div class="header-content-sub">
-                    <p style="text-align: center;color:orange" class="header-content-info">Nhãn = ['fresh apples',
-                        'fresh banana', 'fresh oranges', 'rotten apples', 'rotten banana', 'rotten oranges']
-                    </p>
+                <div class="feature-badge">
+                    <i class="fas fa-seedling me-2"></i>🍌 Chuối
+                </div>
+                <div class="feature-badge">
+                    <i class="fas fa-circle me-2"></i>🍊 Cam
                 </div>
             </div>
         </div>
     </div>
-</div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        let cameraStream = null;
+        let selectedCameraFacing = 'environment';
+
+        // Camera selection
+        function selectCamera(facing) {
+            selectedCameraFacing = facing;
+            document.querySelectorAll('.camera-option').forEach(option => {
+                option.classList.remove('selected');
+            });
+            document.querySelector(`[data-facing="${facing}"]`).classList.add('selected');
+        }
+
+        // File upload handling
+        document.getElementById('fileInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                // Validate file size
+                if (file.size > 10 * 1024 * 1024) {
+                    alert('File quá lớn! Vui lòng chọn file nhỏ hơn 10MB.');
+                    return;
+                }
+
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    document.getElementById('previewImage').src = e.target.result;
+                    document.getElementById('uploadContent').style.display = 'none';
+                    document.getElementById('previewContent').style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // Drag and drop functionality
+        const uploadArea = document.getElementById('uploadArea');
+
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            uploadArea.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            uploadArea.addEventListener(eventName, highlight, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            uploadArea.addEventListener(eventName, unhighlight, false);
+        });
+
+        function highlight(e) {
+            uploadArea.classList.add('dragover');
+        }
+
+        function unhighlight(e) {
+            uploadArea.classList.remove('dragover');
+        }
+
+        uploadArea.addEventListener('drop', handleDrop, false);
+
+        function handleDrop(e) {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+
+            if (files.length > 0) {
+                document.getElementById('fileInput').files = files;
+                document.getElementById('fileInput').dispatchEvent(new Event('change'));
+            }
+        }
+
+        function resetFileUpload() {
+            document.getElementById('fileInput').value = '';
+            document.getElementById('uploadContent').style.display = 'block';
+            document.getElementById('previewContent').style.display = 'none';
+        }
+
+        // Camera functionality
+        async function startCamera() {
+            try {
+                const constraints = {
+                    video: {
+                        facingMode: selectedCameraFacing,
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    }
+                };
+
+                cameraStream = await navigator.mediaDevices.getUserMedia(constraints);
+                document.getElementById('video').srcObject = cameraStream;
+                document.getElementById('cameraStart').style.display = 'none';
+                document.getElementById('cameraActive').style.display = 'block';
+                document.getElementById('cameraSelection').style.display = 'none';
+            } catch (err) {
+                console.error('Camera error:', err);
+                alert('Không thể truy cập camera. Vui lòng kiểm tra quyền truy cập và thử lại.');
+            }
+        }
+
+        function stopCamera() {
+            if (cameraStream) {
+                cameraStream.getTracks().forEach(track => track.stop());
+                cameraStream = null;
+            }
+            document.getElementById('cameraStart').style.display = 'block';
+            document.getElementById('cameraActive').style.display = 'none';
+            document.getElementById('cameraSelection').style.display = 'block';
+            document.getElementById('cameraForm').style.display = 'none';
+        }
+
+        function capturePhoto() {
+            const canvas = document.getElementById('canvas');
+            const video = document.getElementById('video');
+            const context = canvas.getContext('2d');
+
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            context.drawImage(video, 0, 0);
+
+            const dataURL = canvas.toDataURL('image/jpeg', 0.9);
+            document.getElementById('camera_image').value = dataURL;
+            document.getElementById('cameraForm').style.display = 'block';
+
+            // Hide video, show canvas preview
+            video.style.display = 'none';
+            canvas.style.display = 'block';
+            canvas.className = 'camera-video';
+        }
+
+        // Form submission with loading states
+        document.getElementById('fileForm').addEventListener('submit', function() {
+            const btn = document.getElementById('analyzeBtn');
+            btn.innerHTML = '<span class="loading-spinner me-2"></span>Đang phân tích...';
+            btn.disabled = true;
+        });
+
+        document.getElementById('urlForm').addEventListener('submit', function() {
+            const btn = document.getElementById('urlAnalyzeBtn');
+            btn.innerHTML = '<span class="loading-spinner me-2"></span>Đang tải và phân tích...';
+            btn.disabled = true;
+        });
+
+        document.getElementById('cameraForm').addEventListener('submit', function() {
+            const btn = document.getElementById('cameraAnalyzeBtn');
+            btn.innerHTML = '<span class="loading-spinner me-2"></span>Đang phân tích...';
+            btn.disabled = true;
+        });
+
+        // Add smooth transitions
+        document.addEventListener('DOMContentLoaded', function() {
+            const elements = document.querySelectorAll('.fade-in');
+            elements.forEach((el, index) => {
+                setTimeout(() => {
+                    el.style.opacity = '1';
+                    el.style.transform = 'translateY(0)';
+                }, index * 200);
+            });
+        });
+
+        // URL validation
+        document.getElementById('imageUrl').addEventListener('input', function(e) {
+            const url = e.target.value;
+            const isValid = url.match(/\.(jpeg|jpg|gif|png|webp)$/i);
+
+            if (url && !isValid) {
+                e.target.setCustomValidity('URL phải trỏ đến file ảnh (jpg, png, gif, webp)');
+            } else {
+                e.target.setCustomValidity('');
+            }
+        });
+    </script>
 </body>
 </html>

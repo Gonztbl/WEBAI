@@ -1,89 +1,896 @@
-<!-- success.html: Giao diện nâng cấp -->
 <!DOCTYPE html>
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kết quả phân tích toàn diện</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
+    <title>Kết Quả Phân Tích AI - Hệ Thống Chuyên Nghiệp</title>
+
+    <!-- Bootstrap 5 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        :root {
+            --primary-color: #10b981;
+            --secondary-color: #3b82f6;
+            --accent-color: #f59e0b;
+            --danger-color: #ef4444;
+            --success-color: #22c55e;
+            --warning-color: #f59e0b;
+            --dark-color: #1f2937;
+            --light-bg: #f8fafc;
+            --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .color-analysis-full-view {
+            display: block; /* Quan trọng để canh giữa bằng margin */
+            width: 80%;     /* Thu nhỏ chiều rộng còn 80% */
+            max-width: 400px; /* Đặt chiều rộng tối đa, tránh quá to trên màn hình lớn */
+            height: auto;
+            margin: 2rem auto 0 auto; /* Canh lề trên 2rem, và tự động canh giữa trái-phải */
+            object-fit: contain;
+            border-radius: 20px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--gradient-primary);
+            min-height: 100vh;
+            padding: 2rem 0;
+        }
+
+        .navbar-custom {
+            background: rgba(255, 255, 255, 0.95) !important;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .main-container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 0 1rem;
+        }
+
+        .page-header {
+            text-align: center;
+            margin-bottom: 3rem;
+            color: white;
+        }
+
+        .page-title {
+            font-size: 3.5rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            text-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .page-subtitle {
+            font-size: 1.3rem;
+            opacity: 0.9;
+            margin-bottom: 2rem;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .result-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 25px;
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            margin-bottom: 2rem;
+            overflow: hidden;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .result-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 35px 70px rgba(0, 0, 0, 0.2);
+        }
+
+        .card-header-gradient {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            padding: 2rem;
+            border: none;
+            position: relative;
+        }
+
+        .card-header-final {
+            background: linear-gradient(135deg, #ff6b6b, #ee5a24);
+        }
+
+        .card-header-pytorch {
+            background: linear-gradient(135deg, #ff9a9e, #fecfef);
+        }
+
+        .card-header-color {
+            background: linear-gradient(135deg, #a55eea, #26de81);
+        }
+
+        .card-header-keras {
+            background: linear-gradient(135deg, #45b7d1, #96ceb4);
+        }
+
+        .card-header-images {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+        }
+
+        .final-result-section {
+            text-align: center;
+            padding: 3rem 2rem;
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(59, 130, 246, 0.1));
+        }
+
+        .final-result-title {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--dark-color);
+            margin-bottom: 1rem;
+        }
+
+        .final-result-description {
+            font-size: 1.5rem;
+            color: var(--primary-color);
+            font-weight: 600;
+            margin-bottom: 2rem;
+            padding: 1rem 2rem;
+            background: rgba(16, 185, 129, 0.1);
+            border-radius: 50px;
+            display: inline-block;
+        }
+
+        .confidence-display {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+            margin: 2rem 0;
+        }
+
+        .confidence-circle {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: white;
+            position: relative;
+        }
+
+        .confidence-high { background: conic-gradient(var(--success-color) 0deg, var(--success-color) calc(var(--percentage) * 3.6deg), #e5e7eb calc(var(--percentage) * 3.6deg)); }
+        .confidence-medium { background: conic-gradient(var(--warning-color) 0deg, var(--warning-color) calc(var(--percentage) * 3.6deg), #e5e7eb calc(var(--percentage) * 3.6deg)); }
+        .confidence-low { background: conic-gradient(var(--danger-color) 0deg, var(--danger-color) calc(var(--percentage) * 3.6deg), #e5e7eb calc(var(--percentage) * 3.6deg)); }
+
+        .quality-score {
+            font-size: 3rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+        }
+
+        .recommendation-box {
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 20px;
+            padding: 2rem;
+            margin: 2rem 0;
+            border-left: 5px solid var(--primary-color);
+        }
+
+        .image-analysis-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin: 2rem 0;
+        }
+
+        .image-item {
+            text-align: center;
+        }
+
+        .image-container {
+            position: relative;
+            overflow: hidden;
+            border-radius: 20px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
+            transition: transform 0.3s ease;
+            margin-bottom: 1rem;
+        }
+
+        .image-container:hover {
+            transform: scale(1.05);
+        }
+
+        .analysis-image {
+            width: 100%;
+            height: 250px;
+            object-fit: cover;
+            border-radius: 20px;
+        }
+
+        .image-overlay {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
+            color: white;
+            padding: 1.5rem;
+            transform: translateY(100%);
+            transition: transform 0.3s ease;
+        }
+
+        .image-container:hover .image-overlay {
+            transform: translateY(0);
+        }
+
+        .image-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .confidence-bar {
+            background: #e5e7eb;
+            border-radius: 50px;
+            height: 35px;
+            overflow: hidden;
+            position: relative;
+            margin: 1.5rem 0;
+        }
+
+        .confidence-fill {
+            height: 100%;
+            border-radius: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            transition: width 1.5s ease-in-out;
+            position: relative;
+        }
+
+        .confidence-fill::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+            animation: shimmer 2s infinite;
+        }
+
+        @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+
+        .prediction-card {
+            text-align: center;
+            padding: 2rem;
+        }
+
+        .prediction-title {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            color: var(--dark-color);
+        }
+
+        .ripeness-badge {
+            display: inline-block;
+            padding: 1rem 2.5rem;
+            border-radius: 50px;
+            font-size: 1.4rem;
+            font-weight: 600;
+            margin: 1rem 0;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .ripeness-ripe {
+            background: linear-gradient(135deg, #ff9a9e, #fecfef);
+            color: #be185d;
+        }
+
+        .ripeness-unripe {
+            background: linear-gradient(135deg, #a8edea, #fed6e3);
+            color: #059669;
+        }
+
+        .ripeness-unknown {
+            background: linear-gradient(135deg, #d1d5db, #f3f4f6);
+            color: #6b7280;
+        }
+
+        .freshness-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .freshness-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.5rem;
+            margin: 1rem 0;
+            background: var(--light-bg);
+            border-radius: 20px;
+            border-left: 6px solid var(--primary-color);
+            transition: all 0.3s ease;
+        }
+
+        .freshness-item:hover {
+            transform: translateX(15px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+        }
+
+        .freshness-item:first-child {
+            border-left-color: var(--primary-color);
+            background: rgba(16, 185, 129, 0.1);
+        }
+
+        .freshness-item:nth-child(2) {
+            border-left-color: var(--secondary-color);
+            background: rgba(59, 130, 246, 0.1);
+        }
+
+        .freshness-item:nth-child(3) {
+            border-left-color: var(--accent-color);
+            background: rgba(245, 158, 11, 0.1);
+        }
+
+        .percentage-badge {
+            background: var(--primary-color);
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 50px;
+            font-weight: 600;
+            font-size: 1rem;
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-top: 2rem;
+        }
+
+        .summary-item {
+            text-align: center;
+            padding: 2rem;
+            background: var(--light-bg);
+            border-radius: 20px;
+            border-top: 5px solid var(--primary-color);
+            transition: transform 0.3s ease;
+        }
+
+        .summary-item:hover {
+            transform: translateY(-5px);
+        }
+
+        .summary-icon {
+            font-size: 2.5rem;
+            color: var(--primary-color);
+            margin-bottom: 1rem;
+        }
+
+        .summary-label {
+            font-size: 1rem;
+            color: #6b7280;
+            margin-bottom: 0.5rem;
+        }
+
+        .summary-value {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: var(--dark-color);
+        }
+
+        .back-button {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            z-index: 1000;
+            border-radius: 50px;
+            padding: 1.2rem 2.5rem;
+            background: linear-gradient(135deg, var(--danger-color), #dc2626);
+            border: none;
+            color: white;
+            font-weight: 600;
+            text-decoration: none;
+            box-shadow: 0 15px 35px rgba(239, 68, 68, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        .back-button:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 50px rgba(239, 68, 68, 0.4);
+            color: white;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 350px;
+            margin: 2rem 0;
+        }
+
+        .detection-info {
+            background: rgba(59, 130, 246, 0.1);
+            border-radius: 15px;
+            padding: 1.5rem;
+            margin: 1rem 0;
+            border-left: 5px solid var(--secondary-color);
+        }
+
+        .fade-in {
+            animation: fadeInUp 0.8s ease-out;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(40px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        @media (max-width: 768px) {
+            .page-title {
+                font-size: 2.5rem;
+            }
+
+            .main-container {
+                padding: 0 0.5rem;
+            }
+
+            .back-button {
+                bottom: 1rem;
+                right: 1rem;
+                padding: 1rem 2rem;
+            }
+
+            .image-analysis-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .final-result-title {
+                font-size: 2rem;
+            }
+
+            .confidence-circle {
+                width: 100px;
+                height: 100px;
+                font-size: 1.2rem;
+            }
+        }
+    </style>
 </head>
-<body class="bg-light" style="background-image: url('{{ url_for('static', filename='css/b4.jpg') }}'); background-size: cover; background-repeat: no-repeat;">
 
-<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-    <div class="container">
-        <a class="navbar-brand" href="/">Phân Tích Trái Cây AI</a>
+<body style="transform: scale(0.95);">
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-custom fixed-top">
+        <div class="container">
+            <a class="navbar-brand fw-bold" href="/">
+                <i class="fas fa-microscope text-primary me-2"></i>
+                Phân Tích Trái Cây AI
+            </a>
+            <div class="navbar-nav ms-auto">
+                <span class="navbar-text">
+                    <i class="fas fa-clock me-1"></i>
+                    <span id="currentTime"></span>
+                </span>
+            </div>
+        </div>
+    </nav>
+
+    <div class="main-container" style="margin-top: 100px;">
+        <!-- Page Header -->
+        <div class="page-header fade-in">
+            <h1 class="page-title">
+                <i class="fas fa-chart-line me-3"></i>
+                Kết Quả Phân Tích AI Toàn Diện
+            </h1>
+            <p class="page-subtitle">
+                Phân tích đa mô hình với PyTorch, Keras, YOLO và Color Analysis - Độ chính xác cao với công nghệ Ensemble Learning
+            </p>
+        </div>
+
+        <!-- Final Result Section -->
+        <div class="result-card fade-in">
+            <div class="card-header card-header-final">
+                <h2 class="mb-0">
+                    <i class="fas fa-trophy me-2"></i>
+                    Kết Quả Cuối Cùng - Tổng Hợp AI
+                </h2>
+                <small class="opacity-75">Kết hợp từ tất cả mô hình AI để đưa ra kết luận chính xác nhất</small>
+            </div>
+            <div class="final-result-section">
+                <div class="final-result-title">{{ predictions.final_result.description }}</div>
+
+                <div class="confidence-display">
+                    <div class="confidence-circle {% if predictions.final_result.overall_confidence >= 80 %}confidence-high{% elif predictions.final_result.overall_confidence >= 60 %}confidence-medium{% else %}confidence-low{% endif %}"
+                         style="--percentage: {{ predictions.final_result.overall_confidence }}">
+                        <div style="background: white; border-radius: 50%; width: 90px; height: 90px; display: flex; align-items: center; justify-content: center; color: #333;">
+                            {{ predictions.final_result.overall_confidence }}%
+                        </div>
+                    </div>
+                    <div>
+                        <div class="quality-score">{{ predictions.final_result.quality_score }}/100</div>
+                        <small class="text-muted">Điểm Chất Lượng</small>
+                    </div>
+                </div>
+
+                <div class="recommendation-box">
+                    <h5><i class="fas fa-lightbulb me-2"></i>Khuyến Nghị</h5>
+                    <p class="mb-0">{{ predictions.final_result.recommendation }}</p>
+                </div>
+
+                <div class="summary-grid">
+                    <div class="summary-item">
+                        <div class="summary-icon">
+                            <i class="fas fa-apple-alt"></i>
+                        </div>
+                        <div class="summary-label">Loại Trái Cây</div>
+                        <div class="summary-value">{{ predictions.final_result.fruit_type }}</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-icon">
+                            <i class="fas fa-seedling"></i>
+                        </div>
+                        <div class="summary-label">Độ Chín</div>
+                        <div class="summary-value">{{ predictions.final_result.ripeness }}</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-icon">
+                            <i class="fas fa-heart"></i>
+                        </div>
+                        <div class="summary-label">Độ Tươi</div>
+                        <div class="summary-value">{{ predictions.final_result.freshness }}</div>
+                    </div>
+                    <div class="summary-item">
+                        <div class="summary-icon">
+                            <i class="fas fa-percentage"></i>
+                        </div>
+                        <div class="summary-label">Độ Tin Cậy</div>
+                        <div class="summary-value">{{ predictions.final_result.overall_confidence }}%</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- Image Analysis Section -->
+            <div class="col-lg-8">
+                <div class="result-card fade-in">
+                    <div class="card-header card-header-images">
+                        <h3 class="mb-0">
+                            <i class="fas fa-images me-2"></i>
+                            Phân Tích Hình Ảnh Chi Tiết
+                        </h3>
+                        <small class="opacity-75">Ảnh gốc, vùng phát hiện và ảnh được cắt để phân tích</small>
+                    </div>
+                    <div class="card-body p-4">
+                        {% if detection_result %}
+                        <div class="detection-info">
+                            <h6><i class="fas fa-crosshairs me-2"></i>Thông Tin Phát Hiện YOLO</h6>
+                            <p class="mb-1">Độ tin cậy phát hiện: <strong>{{ "%.2f"|format(detection_result.confidence * 100) }}%</strong></p>
+                            <p class="mb-0">Trạng thái: <span class="badge bg-success">Phát hiện thành công</span></p>
+                        </div>
+                        {% endif %}
+
+                        <!-- LƯỚI ẢNH PREVIEW (CHỈ CÒN 3 ẢNH) -->
+                        <div class="image-analysis-grid">
+                            <div class="image-item">
+                                <div class="image-container">
+                                    <img src="{{ url_for('static', filename='images/' + images.original) }}"
+                                         alt="Ảnh gốc" class="analysis-image">
+                                    <div class="image-overlay">
+                                        <div class="image-title">Ảnh Gốc</div>
+                                        <small><i class="fas fa-info-circle me-1"></i>Ảnh đầu vào từ người dùng</small>
+                                    </div>
+                                </div>
+                                <h6 class="mt-2">Ảnh Gốc</h6>
+                            </div>
+
+                            <div class="image-item">
+                                <div class="image-container">
+                                    <img src="{{ url_for('static', filename='images/' + images.bbox) }}"
+                                         alt="Phát hiện đối tượng" class="analysis-image">
+                                    <div class="image-overlay">
+                                        <div class="image-title">YOLO Detection</div>
+                                        <small><i class="fas fa-info-circle me-1"></i>Phát hiện và định vị trái cây</small>
+                                    </div>
+                                </div>
+                                <h6 class="mt-2">Phát Hiện Đối Tượng</h6>
+                            </div>
+
+                            <div class="image-item">
+                                <div class="image-container">
+                                    <img src="{{ url_for('static', filename='images/' + images.cropped) }}"
+                                         alt="Ảnh cắt để phân loại" class="analysis-image">
+                                    <div class="image-overlay">
+                                        <div class="image-title">Cropped for AI</div>
+                                        <small><i class="fas fa-info-circle me-1"></i>Ảnh được cắt để phân tích AI</small>
+                                    </div>
+                                </div>
+                                <h6 class="mt-2">Ảnh Phân Loại</h6>
+                            </div>
+                        </div>
+
+                        <!-- PHẦN MỚI DÀNH RIÊNG CHO ẢNH PHÂN TÍCH MÀU SẮC -->
+                        <div class="text-center">
+                            <h4 class="mt-5 mb-3 fw-bold">Báo Cáo Phân Tích Màu Sắc Chi Tiết</h4>
+                            <img src="{{ url_for('static', filename='images/' + images.color) }}"
+                                 alt="Phân tích màu sắc chi tiết" class="color-analysis-full-view">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Results Section -->
+            <div class="col-lg-4">
+                <!-- AI Prediction -->
+                <div class="result-card fade-in">
+                    <div class="card-header card-header-pytorch">
+                        <h4 class="mb-0">
+                            <i class="fas fa-brain me-2"></i>
+                            PyTorch Model
+                        </h4>
+                        <small class="opacity-75">Phân loại độ chín với MobileNetV2</small>
+                    </div>
+                    <div class="card-body prediction-card">
+                        <div class="prediction-title">{{ predictions.pytorch_prediction }}</div>
+                        <div class="confidence-bar">
+                            <div class="confidence-fill {% if predictions.pytorch_confidence >= 80 %}confidence-high{% elif predictions.pytorch_confidence >= 60 %}confidence-medium{% else %}confidence-low{% endif %}"
+                                 style="width: {{ predictions.pytorch_confidence }}%;">
+                                {{ "%.1f"|format(predictions.pytorch_confidence) }}%
+                            </div>
+                        </div>
+                        <div class="mt-3">
+                            {% if predictions.pytorch_confidence >= 80 %}
+                                <span class="badge bg-success">Rất tin cậy</span>
+                            {% elif predictions.pytorch_confidence >= 60 %}
+                                <span class="badge bg-warning">Tin cậy</span>
+                            {% else %}
+                                <span class="badge bg-danger">Cần xem xét</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Color Analysis -->
+                <div class="result-card fade-in">
+                    <div class="card-header card-header-color">
+                        <h4 class="mb-0">
+                            <i class="fas fa-palette me-2"></i>
+                            Color Analysis
+                        </h4>
+                        <small class="opacity-75">Phân tích màu sắc chủ đạo</small>
+                    </div>
+                    <div class="card-body text-center">
+                        <div class="ripeness-badge {% if predictions.color_ripeness == 'CHÍN' %}ripeness-ripe{% elif predictions.color_ripeness == 'XANH' %}ripeness-unripe{% else %}ripeness-unknown{% endif %}">
+                            {{ predictions.color_ripeness }}
+                        </div>
+                        <p class="text-muted mt-2">
+                            <i class="fas fa-info-circle me-1"></i>
+                            Dựa trên phân tích màu sắc K-Means
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Freshness Analysis -->
+                <div class="result-card fade-in">
+                    <div class="card-header card-header-keras">
+                        <h4 class="mb-0">
+                            <i class="fas fa-heartbeat me-2"></i>
+                            Keras Model
+                        </h4>
+                        <small class="opacity-75">Phân tích độ tươi/hỏng</small>
+                    </div>
+                    <div class="card-body">
+                        <ul class="freshness-list">
+                            <li class="freshness-item">
+                                <span class="fw-semibold">{{ predictions.freshness_class1 }}</span>
+                                <span class="percentage-badge">{{ "%.1f"|format(predictions.freshness_prob1) }}%</span>
+                            </li>
+                            <li class="freshness-item">
+                                <span class="text-muted">{{ predictions.freshness_class2 }}</span>
+                                <span class="badge bg-secondary">{{ "%.1f"|format(predictions.freshness_prob2) }}%</span>
+                            </li>
+                            <li class="freshness-item">
+                                <span class="text-muted">{{ predictions.freshness_class3 }}</span>
+                                <span class="badge bg-secondary">{{ "%.1f"|format(predictions.freshness_prob3) }}%</span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chart Section -->
+        <div class="result-card fade-in">
+            <div class="card-header card-header-gradient">
+                <h3 class="mb-0">
+                    <i class="fas fa-chart-pie me-2"></i>
+                    Biểu Đồ Phân Tích & Thống Kê
+                </h3>
+                <small class="opacity-75">Trực quan hóa kết quả từ các mô hình AI</small>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="chart-container">
+                            <canvas id="freshnessChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="chart-container">
+                            <canvas id="confidenceChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
-</nav>
 
-<div class="container mt-5">
-<div style="position: fixed; bottom: 20px; right: 20px; z-index: 1000;">
-    <a href="/" class="btn btn-lg btn-danger">
-        <i class="fas fa-redo"></i> Thử lại
+    <!-- Back Button -->
+    <a href="/" class="back-button pulse">
+        <i class="fas fa-redo me-2"></i>Phân tích mới
     </a>
-</div>
-    <h1 class="text-center mb-4" style="color: #ff0000; font-weight: bold;">Kết Quả Phân Tích Toàn Diện</h1>
-    <div class="row g-4">
-        <div class="col-lg-7">
-            <div class="card shadow-sm mb-4">
-                <div class="card-header fw-bold">Hiển thị 2 ảnh: Gốc + Bounding Box & Phân tích màu</div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-6 text-center">
-                            <p><strong>1. Ảnh gốc + Bounding Box</strong></p>
-                            <img src="{{ url_for('static', filename='images/' + yolo_img) }}" class="img-fluid rounded shadow">
-                        </div>
-                        <div class="col-md-6 text-center">
-                            <p><strong>2. Ảnh phân tích màu chủ đạo</strong></p>
-                            <img src="{{ url_for('static', filename='images/' + img) }}" class="img-fluid rounded shadow">
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
 
-        <div class="col-lg-5">
-            <div class="card shadow-sm mb-4">
-                <div class="card-header bg-success text-white fw-bold">
-                    <i class="fas fa-brain"></i> Dự Đoán (PyTorch)
-                </div>
-                <div class="card-body text-center">
-                    <h4>{{ predictions.pytorch_prediction }}</h4>
-                    <div class="progress" style="height: 30px;">
-                        <div class="progress-bar progress-bar-striped progress-bar-animated bg-info" role="progressbar" style="width: {{ predictions.pytorch_confidence }}%;">
-                            <strong>{{ predictions.pytorch_confidence | round(2) }}%</strong>
-                        </div>
-                    </div>
-                </div>
-            </div>
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
-            <div class="card shadow-sm mb-4">
-                <div class="card-header"><i class="fas fa-palette"></i> Đánh giá độ chín (phân tích màu)</div>
-                <div class="card-body text-center">
-                    <p class="fs-5">{{ predictions.color_ripeness }}</p>
-                </div>
-            </div>
+        <script>
+        // Update current time
+        function updateTime() {
+            const now = new Date();
+            const timeString = now.toLocaleString('vi-VN', {
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+            document.getElementById('currentTime').textContent = timeString;
+        }
 
-            <div class="card shadow-sm">
-                <div class="card-header"><i class="fas fa-heartbeat"></i> Dự đoán tươi/hỏng (Keras)</div>
-                <ul class="list-group list-group-flush">
-                    <li class="list-group-item d-flex justify-content-between">
-                        {{ predictions.freshness_class1 }} <span class="badge bg-primary">{{ predictions.freshness_prob1 }}%</span>
-                    </li>
-                    <li class="list-group-item d-flex justify-content-between">
-                        {{ predictions.freshness_class2 }} <span class="badge bg-secondary">{{ predictions.freshness_prob2 }}%</span>
-                    </li>
-                    <li class="list-group-item d-flex justify-content-between">
-                        {{ predictions.freshness_class3 }} <span class="badge bg-secondary">{{ predictions.freshness_prob3 }}%</span>
-                    </li>
-                </ul>
-            </div>
-        </div>
-    </div>
+        updateTime();
+        setInterval(updateTime, 60000);
 
-</div>
+        document.addEventListener('DOMContentLoaded', (event) => {
+            // =======================================================
+            // Chart.js Initialization - PHẦN BỊ THIẾU NẰM Ở ĐÂY
+            // =======================================================
+            const rootStyles = getComputedStyle(document.documentElement);
 
-<!-- Đã loại bỏ Chart.js và phần vẽ biểu đồ -->
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
+            // --- Biểu đồ 1: Phân tích độ tươi/hỏng (Keras) ---
+            const freshnessCtx = document.getElementById('freshnessChart').getContext('2d');
+            const freshnessChart = new Chart(freshnessCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: [
+                        '{{ predictions.freshness_class1 }}',
+                        '{{ predictions.freshness_class2 }}',
+                        '{{ predictions.freshness_class3 }}'
+                    ],
+                    datasets: [{
+                        label: 'Xác suất',
+                        data: [
+                            {{ "%.1f"|format(predictions.freshness_prob1) }},
+                            {{ "%.1f"|format(predictions.freshness_prob2) }},
+                            {{ "%.1f"|format(predictions.freshness_prob3) }}
+                        ],
+                        backgroundColor: [
+                            rootStyles.getPropertyValue('--success-color').trim(),
+                            rootStyles.getPropertyValue('--secondary-color').trim(),
+                            rootStyles.getPropertyValue('--warning-color').trim()
+                        ],
+                        borderColor: '#ffffff',
+                        borderWidth: 3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                font: {
+                                    size: 14,
+                                    family: 'Inter, sans-serif'
+                                }
+                            }
+                        },
+                        title: {
+                            display: true,
+                            text: 'Phân Tích Độ Tươi/Hỏng (Keras Model)',
+                            font: { size: 18, weight: 'bold' }
+                        }
+                    }
+                }
+            });
+
+            // --- Biểu đồ 2: So sánh độ tin cậy các mô hình ---
+            const confidenceCtx = document.getElementById('confidenceChart').getContext('2d');
+            const confidenceChart = new Chart(confidenceCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['PyTorch (Độ Chín)', 'Keras (Độ Tươi)', 'Color Analysis', 'Tổng Hợp AI'],
+                    datasets: [{
+                        label: 'Độ Tin Cậy (%)',
+                        data: [
+                            {{ "%.1f"|format(predictions.pytorch_confidence) }},
+                            {{ "%.1f"|format(predictions.freshness_prob1) }},
+                            {{ "%.1f"|format(predictions.color_confidence) }},
+                            {{ "%.1f"|format(predictions.final_result.overall_confidence) }}
+                        ],
+                        backgroundColor: [
+                            'rgba(255, 154, 158, 0.7)', // PyTorch
+                            'rgba(69, 183, 209, 0.7)', // Keras
+                            'rgba(165, 94, 234, 0.7)', // Color
+                            'rgba(255, 107, 107, 0.8)'  // Final
+                        ],
+                        borderColor: [
+                            '#ff9a9e',
+                            '#45b7d1',
+                            '#a55eea',
+                            '#ff6b6b'
+                        ],
+                        borderWidth: 2,
+                        borderRadius: 10
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                             ticks: {
+                                callback: function(value) {
+                                    return value + '%'
+                                }
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        title: {
+                            display: true,
+                            text: 'So Sánh Độ Tin Cậy Các Mô Hình AI',
+                            font: { size: 18, weight: 'bold' }
+                        }
+                    }
+                }
+            });
+        });
+    </script>
