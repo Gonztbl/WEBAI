@@ -129,37 +129,35 @@ class ModelManager:
             raise
     # Trong class ModelManager
 
-def load_models(self):
-    try:
-        # Load Keras model
-        logger.info("Loading Keras freshness model...")
-        self.models['keras'] = load_model(config.CLASSIFIER_MODEL_PATH,compile=False)
-        # THÊM BƯỚC KHỞI ĐỘNG ĐỂ TĂNG TÍNH ỔN ĐỊNH
-        self.models['keras'].predict(np.zeros((1, *config.TARGET_SIZE, 3)))
-        logger.info("Keras model initialized with a warm-up prediction.")
+            # Trong class ModelManager
+    def load_models(self):
+        try:
+            # Load Keras model
+            logger.info("Loading Keras freshness model...")
+            self.models['keras'] = load_model(config.CLASSIFIER_MODEL_PATH,compile=False)
+            # THÊM BƯỚC KHỞI ĐỘNG ĐỂ TĂNG TÍNH ỔN ĐỊNH
+            self.models['keras'].predict(np.zeros((1, *config.TARGET_SIZE, 3)))
+            logger.info("Keras model initialized with a warm-up prediction.")
 
-        # Mới: Tải nhãn cho mô hình Keras
-        self._load_keras_class_names()
+            # Tải nhãn cho mô hình Keras
+            self._load_keras_class_names()
 
-        # === XÓA HOÀN TOÀN KHỐI TẢI YOLO Ở ĐÂY ===
-        # Dòng "Loading YOLO detection model..." và các dòng liên quan đã được xóa.
+            # Load PyTorch model
+            logger.info("Loading PyTorch ripeness model...")
+            pytorch_model = models.mobilenet_v2(weights=None)
+            num_ftrs = pytorch_model.classifier[1].in_features
+            pytorch_model.classifier = nn.Sequential(
+                nn.Dropout(p=0.2),
+                nn.Linear(num_ftrs, len(config.RIPENESS_CLASSES))
+            )
+            pytorch_model.load_state_dict(torch.load(config.RIPENESS_MODEL_PATH, map_location=self.device))
+            self.models['pytorch'] = pytorch_model.to(self.device).eval()
 
-        # Load PyTorch model
-        logger.info("Loading PyTorch ripeness model...")
-        pytorch_model = models.mobilenet_v2(weights=None)
-        num_ftrs = pytorch_model.classifier[1].in_features
-        pytorch_model.classifier = nn.Sequential(
-            nn.Dropout(p=0.2),
-            nn.Linear(num_ftrs, len(config.RIPENESS_CLASSES))
-        )
-        pytorch_model.load_state_dict(torch.load(config.RIPENESS_MODEL_PATH, map_location=self.device))
-        self.models['pytorch'] = pytorch_model.to(self.device).eval()
+            logger.info("All models loaded successfully!")
 
-        logger.info("All models loaded successfully!")
-
-    except Exception as e:
-        logger.error(f"Error loading models: {e}")
-        raise
+        except Exception as e:
+            logger.error(f"Error loading models: {e}")
+            raise
 
 
 # Khởi tạo ngay sau khi định nghĩa class
