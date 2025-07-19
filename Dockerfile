@@ -11,7 +11,6 @@ ENV TF_CPP_MIN_LOG_LEVEL=3
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     wget \
-    libgl1-mesa-glx\
     curl && \
     rm -rf /var/lib/apt/lists/*
 
