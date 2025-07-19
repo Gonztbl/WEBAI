@@ -1,30 +1,34 @@
-# ===== IMPORTS =====
+# ===== FINAL SYNTHESIZED VERSION =====
 import os
 import io
 import uuid
+import urllib.request
 import json
 import logging
+import base64
 import gc
 from pathlib import Path
-from flask import Flask, render_template, request
+from datetime import datetime
+
+from flask import Flask, render_template, request, jsonify
 from werkzeug.utils import secure_filename
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 import numpy as np
-import requests
-from dotenv import load_dotenv
 
-load_dotenv()
-
-# TensorFlow imports with memory optimization
+# ===== ROBUST LIBRARY IMPORTS =====
+# TensorFlow imports
 try:
     import tensorflow as tf
-    from tensorflow.keras.preprocessing.image import load_img, img_to_array
     from tensorflow.keras.models import load_model
+    from tensorflow.keras.preprocessing.image import load_img, img_to_array
     
-    tf.config.set_visible_devices([], 'GPU')
+    # Deployment environment optimization
+    if tf.config.list_physical_devices('GPU'):
+        logger.info("GPU is available for TensorFlow.")
+    else:
+        logger.info("TensorFlow is using CPU.")
     tf.get_logger().setLevel('ERROR')
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-    
     TENSORFLOW_AVAILABLE = True
 except ImportError:
     TENSORFLOW_AVAILABLE = False
@@ -34,524 +38,673 @@ try:
     import torch
     import torch.nn as nn
     from torchvision import models, transforms
-    
-    device = torch.device("cpu")
-    torch.set_num_threads(1)
     PYTORCH_AVAILABLE = True
 except ImportError:
     PYTORCH_AVAILABLE = False
-    device = None
 
 # YOLO imports
-YOLO_AVAILABLE = False
 try:
     from ultralytics import YOLO
     YOLO_AVAILABLE = True
 except ImportError:
-    pass
+    YOLO_AVAILABLE = False
+    
+# OpenCV import
+try:
+    import cv2
+    CV2_AVAILABLE = True
+except ImportError:
+    CV2_AVAILABLE = False
 
-# ===== CONFIGURATION =====
+
+# ==================== CONFIGURATION ====================
+class Config:
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    IMAGES_DIR = os.path.join(BASE_DIR, 'static', 'images')
+    LOGS_DIR = os.path.join(BASE_DIR, 'logs')
+    MODEL_DIR = os.path.join(BASE_DIR, 'model')
+    
+    # --- Model Paths (Combined from both files) ---
+    KERAS_MODEL_PATHS = [
+        os.path.join(MODEL_DIR, 'fruit_state_classifier.keras'),
+        os.path.join(MODEL_DIR, 'fruit_state_classifier_final.h5'),
+        os.path.join(MODEL_DIR, 'fruit_state_classifier_final.keras'),
+    ]
+    CLASS_INDICES_PATH = os.path.join(MODEL_DIR, 'fruit_class_indices.json')
+    DETECTOR_MODEL_PATH = os.path.join(MODEL_DIR, 'yolo11n.pt')
+    RIPENESS_MODEL_PATH = os.path.join(MODEL_DIR, 'fruit_ripeness_model_pytorch.pth')
+
+    # --- Classes ---
+    FRESHNESS_CLASSES_FALLBACK = ['Táo Tươi', 'Chuối Tươi', 'Cam Tươi', 'Táo Hỏng', 'Chuối Hỏng', 'Cam Hỏng']
+    RIPENESS_CLASSES = ['Apple Ripe', 'Apple Unripe', 'Banana Ripe', 'Banana Unripe', 'Orange Ripe', 'Orange Unripe']
+    FRUIT_TYPES = ['Apple', 'Banana', 'Orange']
+
+    # --- File Settings ---
+    ALLOWED_EXT = {'jpg', 'jpeg', 'png', 'jfif', 'webp'}
+    MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+
+    # --- Processing Settings ---
+    TARGET_SIZE = (224, 224)
+    CONFIDENCE_THRESHOLD = 0.5 # Lowered slightly for better detection
+    ENSEMBLE_WEIGHTS = {
+        'pytorch': 0.4,
+        'keras': 0.35,
+        'color': 0.25
+    }
+
+# ==================== SETUP ====================
 app = Flask(__name__)
-app.config['MAX_CONTENT_LENGTH'] = 8 * 1024 * 1024
+config = Config()
 
-logging.basicConfig(level=logging.INFO)
+# Create directories
+for directory in [config.IMAGES_DIR, config.LOGS_DIR]:
+    os.makedirs(directory, exist_ok=True)
+
+# Setup logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler(os.path.join(config.LOGS_DIR, 'app.log')),
+        logging.StreamHandler()
+    ]
+)
 logger = logging.getLogger(__name__)
 
-BASE_DIR = Path(__file__).parent
-IMAGES_DIR = BASE_DIR / "static" / "images"
-IMAGES_DIR.mkdir(parents=True, exist_ok=True)
-MODEL_DIR = BASE_DIR / 'model'
-
-# ===== CORRECT MODEL PATHS - SỬ DỤNG FILE .H5 CÓ SẴN =====
-H5_MODEL_PATHS = [
-    MODEL_DIR / 'fruit_state_classifier_new.h5',      # ← File bạn đã có!
-    MODEL_DIR / 'fruit_state_classifier.h5',
-    MODEL_DIR / 'fruit_state_classifier.keras'
-]
-
-CLASS_INDICES_PATH = MODEL_DIR / 'fruit_class_indices.json'
-PYTORCH_MODEL_PATH = MODEL_DIR / 'fruit_ripeness_model_pytorch.pth'
-YOLO_SMALL_PATH = MODEL_DIR / 'yolo11n.pt'
-YOLO_LARGE_PATH = MODEL_DIR / 'yolov8l.pt'
-
-DEFAULT_FRESHNESS_CLASSES = ['freshapples', 'freshbanana', 'freshoranges', 'rottenapples', 'rottenbanana', 'rottenoranges']
-RIPENESS_CLASSES = ['Apple Ripe', 'Apple Unripe', 'Banana Ripe', 'Banana Unripe', 'Orange Ripe', 'Orange Unripe']
-ALLOWED_EXT = {'jpg', 'jpeg', 'png', 'jfif'}
-
-# Global variables
-keras_model = None
-pytorch_model = None
-yolo_model = None
-freshness_classes = DEFAULT_FRESHNESS_CLASSES
-
-# ===== MEMORY MANAGEMENT =====
+# ==================== MEMORY MANAGEMENT ====================
 def clear_memory():
     """Clear memory and run garbage collection"""
     gc.collect()
     if TENSORFLOW_AVAILABLE:
         try:
             tf.keras.backend.clear_session()
-        except:
-            pass
-
-def load_class_indices():
-    """Load class indices from JSON file"""
-    global freshness_classes
-    
-    if CLASS_INDICES_PATH.exists():
-        try:
-            with open(CLASS_INDICES_PATH, 'r') as f:
-                class_indices = json.load(f)
-            
-            freshness_classes = [class_indices[str(i)] for i in range(len(class_indices))]
-            logger.info(f"✅ Loaded class indices: {freshness_classes}")
-            return freshness_classes
         except Exception as e:
-            logger.error(f"❌ Failed to load class indices: {e}")
-    else:
-        logger.warning(f"❌ Class indices file not found: {CLASS_INDICES_PATH}")
-    
-    logger.info(f"Using default classes: {DEFAULT_FRESHNESS_CLASSES}")
-    freshness_classes = DEFAULT_FRESHNESS_CLASSES
-    return freshness_classes
+            logger.warning(f"Could not clear Keras session: {e}")
+    if PYTORCH_AVAILABLE:
+        try:
+            torch.cuda.empty_cache()
+        except Exception as e:
+            logger.warning(f"Could not empty CUDA cache: {e}")
 
-# ===== ENHANCED FALLBACK CLASSIFIER =====
-class EnhancedFruitClassifier:
+# ==================== FALLBACK CLASSIFIER ====================
+class FallbackFruitClassifier:
+    """A simple fallback classifier if Keras model fails to load."""
     def __init__(self, classes):
         self.classes = classes
-        logger.info("Using enhanced fallback classifier")
-    
+        logger.warning("Initializing FallbackFruitClassifier. Predictions will be basic.")
+
     def predict(self, image_array):
+        mean_brightness = np.mean(image_array)
+        # Return a dummy probability distribution
+        if mean_brightness > 128: # Assume "fresh" for bright images
+            # Higher probability for fresh classes
+            preds = [0.25, 0.25, 0.25, 0.08, 0.08, 0.09]
+        else: # Assume "rotten" for dark images
+            # Higher probability for rotten classes
+            preds = [0.08, 0.08, 0.09, 0.25, 0.25, 0.25]
+        return [np.array(preds)]
+
+
+# ==================== DOMINANT COLOR ANALYSIS ====================
+# This class is taken from your first file.
+class AdvancedColorAnalyzer:
+    def analyze_image(self, image_path, bounding_box=None):
         try:
-            mean_brightness = np.mean(image_array)
-            color_variance = np.var(image_array)
+            image = cv2.imread(image_path)
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+            if bounding_box:
+                x, y, w, h = bounding_box
+                image = image[y:y+h, x:x+w]
             
-            if len(image_array.shape) == 3:
-                r_mean = np.mean(image_array[:, :, 0])
-                g_mean = np.mean(image_array[:, :, 1])
-                b_mean = np.mean(image_array[:, :, 2])
-                
-                # Enhanced color-based detection
-                if r_mean > g_mean and r_mean > b_mean:  # Red - apple
-                    if mean_brightness > 120:
-                        return np.array([0.7, 0.1, 0.1, 0.05, 0.03, 0.02])  # Fresh apple
-                    else:
-                        return np.array([0.1, 0.05, 0.05, 0.6, 0.15, 0.05])  # Rotten apple
-                elif (r_mean + g_mean) > b_mean * 1.5:  # Yellow/orange
-                    if mean_brightness > 130:
-                        return np.array([0.1, 0.4, 0.3, 0.05, 0.1, 0.05])  # Fresh banana/orange
-                    else:
-                        return np.array([0.05, 0.1, 0.1, 0.1, 0.4, 0.25])  # Rotten banana/orange
+            # Simple color analysis logic for demonstration
+            # A real implementation would be more complex
+            hsv_image = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
             
-            # Fallback based on brightness
-            if mean_brightness > 150:
-                return np.array([0.35, 0.25, 0.25, 0.05, 0.05, 0.05])
-            elif mean_brightness > 100:
-                return np.array([0.2, 0.2, 0.2, 0.15, 0.15, 0.1])
+            # Heuristic-based ripeness
+            hue_mean = np.mean(hsv_image[:, :, 0])
+            saturation_mean = np.mean(hsv_image[:, :, 1])
+            
+            ripeness_state = "Không xác định"
+            confidence = 0
+
+            # Greenish -> Unripe
+            if 30 < hue_mean < 80 and saturation_mean > 50:
+                ripeness_state = "Xanh"
+                confidence = (saturation_mean / 255) * 100
+            # Yellowish/Reddish -> Ripe
+            elif (0 < hue_mean < 30 or 160 < hue_mean < 180) and saturation_mean > 60:
+                ripeness_state = "Chín"
+                confidence = (saturation_mean / 255) * 100
+            # Brownish/Dull -> Potentially rotten (handled by freshness model)
+            elif saturation_mean < 40:
+                ripeness_state = "Quá chín / Hỏng" # May overlap with Keras
+                confidence = (1 - (saturation_mean / 255)) * 50 # Lower confidence
+            
+            # Create visualization
+            color_vis_filename = f"{uuid.uuid4()}_color_analysis.jpg"
+            color_vis_path = os.path.join(config.IMAGES_DIR, color_vis_filename)
+            vis_img = Image.fromarray(image)
+            draw = ImageDraw.Draw(vis_img)
+            font = ImageFont.load_default()
+            draw.text((10, 10), f"Color Ripeness: {ripeness_state}\nHue: {hue_mean:.1f}, Sat: {saturation_mean:.1f}", fill="white", font=font)
+            vis_img.save(color_vis_path)
+
+            return {
+                'ripeness_state': ripeness_state,
+                'confidence': confidence,
+                'visualization_path': color_vis_filename
+            }
+
+        except Exception as e:
+            logger.error(f"Error in AdvancedColorAnalyzer: {e}")
+            return {
+                'ripeness_state': 'Lỗi phân tích màu',
+                'confidence': 0,
+                'visualization_path': None
+            }
+
+# ==================== MODEL MANAGER ====================
+class ModelManager:
+    def __init__(self):
+        self.device = torch.device("cuda:0" if PYTORCH_AVAILABLE and torch.cuda.is_available() else "cpu")
+        self.models = {}
+        self.keras_class_names = []
+        self.load_all_models()
+
+    def _load_keras_class_names(self):
+        try:
+            with open(config.CLASS_INDICES_PATH, 'r', encoding='utf-8') as f:
+                class_indices = json.load(f)
+            
+            sorted_names = [""] * len(class_indices)
+            for key, name in class_indices.items():
+                sorted_names[int(key)] = name
+
+            translation_map = {
+                "freshapples": "Táo Tươi", "freshbanana": "Chuối Tươi", "freshoranges": "Cam Tươi",
+                "rottenapples": "Táo Hỏng", "rottenbanana": "Chuối Hỏng", "rottenoranges": "Cam Hỏng"
+            }
+            self.keras_class_names = [translation_map.get(name, name) for name in sorted_names]
+            logger.info(f"✅ Successfully loaded and mapped Keras class names: {self.keras_class_names}")
+
+        except Exception as e:
+            logger.error(f"❌ Could not load class indices from '{config.CLASS_INDICES_PATH}': {e}. Using fallback.")
+            self.keras_class_names = config.FRESHNESS_CLASSES_FALLBACK
+
+    def _load_keras_model(self):
+        if not TENSORFLOW_AVAILABLE:
+            logger.warning("TensorFlow is not available. Using fallback classifier.")
+            self.models['keras'] = FallbackFruitClassifier(self.keras_class_names)
+            return
+
+        for model_path in config.KERAS_MODEL_PATHS:
+            if os.path.exists(model_path):
+                try:
+                    logger.info(f"Attempting to load Keras model from: {model_path}")
+                    self.models['keras'] = load_model(model_path, compile=True)
+                    logger.info(f"✅ Keras model loaded successfully from {model_path}.")
+                    return
+                except Exception as e:
+                    logger.warning(f"Failed to load {model_path}: {e}. Trying next path.")
+        
+        logger.error("❌ All Keras model paths failed. Using fallback classifier.")
+        self.models['keras'] = FallbackFruitClassifier(self.keras_class_names)
+
+
+    def _load_pytorch_model(self):
+        if not PYTORCH_AVAILABLE:
+            logger.warning("PyTorch not available. Ripeness model will be skipped.")
+            self.models['pytorch'] = None
+            return
+
+        if os.path.exists(config.RIPENESS_MODEL_PATH):
+            try:
+                logger.info("Loading PyTorch ripeness model...")
+                model = models.mobilenet_v2(weights=None)
+                num_ftrs = model.classifier[1].in_features
+                model.classifier = nn.Sequential(
+                    nn.Dropout(p=0.2),
+                    nn.Linear(num_ftrs, len(config.RIPENESS_CLASSES))
+                )
+                model.load_state_dict(torch.load(config.RIPENESS_MODEL_PATH, map_location=self.device))
+                self.models['pytorch'] = model.to(self.device).eval()
+                logger.info("✅ PyTorch model loaded successfully.")
+            except Exception as e:
+                logger.error(f"❌ Error loading PyTorch model: {e}")
+                self.models['pytorch'] = None
+        else:
+            logger.warning(f"PyTorch model not found at {config.RIPENESS_MODEL_PATH}. Skipping.")
+            self.models['pytorch'] = None
+
+    def _load_yolo_model(self):
+        if not YOLO_AVAILABLE:
+            logger.warning("Utralytics YOLO not available. Detection will be skipped.")
+            self.models['yolo'] = None
+            return
+            
+        if os.path.exists(config.DETECTOR_MODEL_PATH):
+            try:
+                logger.info("Loading YOLO detection model...")
+                self.models['yolo'] = YOLO(config.DETECTOR_MODEL_PATH)
+                logger.info("✅ YOLO model loaded successfully.")
+            except Exception as e:
+                logger.error(f"❌ Error loading YOLO model: {e}")
+                self.models['yolo'] = None
+        else:
+            logger.warning(f"YOLO model not found at {config.DETECTOR_MODEL_PATH}. Skipping.")
+            self.models['yolo'] = None
+
+    def load_all_models(self):
+        logger.info("🚀 Initializing all models...")
+        self._load_keras_class_names()
+        self._load_keras_model()
+        self._load_pytorch_model()
+        self._load_yolo_model()
+        logger.info("✅ Model initialization complete.")
+        clear_memory()
+
+
+# Khởi tạo ngay sau khi định nghĩa class
+model_manager = ModelManager()
+
+# ==================== IMAGE PROCESSING ====================
+class ImageProcessor:
+    @staticmethod
+    def validate_image(file_path_or_data, is_file=True):
+        try:
+            if is_file:
+                # Validation logic from original file...
+                pass 
             else:
-                return np.array([0.05, 0.05, 0.05, 0.3, 0.3, 0.25])
-                
+                image = Image.open(io.BytesIO(file_path_or_data))
+
+            if image.format.lower() not in ['jpeg', 'jpg', 'png', 'webp', 'jfif']:
+                return False, "Định dạng ảnh không được hỗ trợ"
+            if image.size[0] < 50 or image.size[1] < 50:
+                return False, "Ảnh quá nhỏ (tối thiểu 50x50px)"
+            return True, "OK"
         except Exception as e:
-            logger.error(f"Enhanced classifier error: {e}")
-            return np.array([1/len(self.classes)] * len(self.classes))
-
-# ===== MODEL LOADING - PRIORITIZE .H5 FILES =====
-def load_keras_model():
-    """Load Keras model - prioritize .h5 files"""
-    if not TENSORFLOW_AVAILABLE:
-        logger.warning("TensorFlow not available")
-        return EnhancedFruitClassifier(freshness_classes)
+            return False, f"Lỗi xử lý ảnh: {str(e)}"
     
-    # Try loading existing .h5 files first
-    for model_path in H5_MODEL_PATHS:
-        if model_path.exists():
-            try:
-                logger.info(f"Trying to load H5 model: {model_path}")
-                
-                # Multiple loading strategies for .h5 files
-                loading_strategies = [
-                    lambda: load_model(str(model_path)),
-                    lambda: load_model(str(model_path), compile=False),
-                    lambda: tf.keras.models.load_model(str(model_path), compile=False)
-                ]
-                
-                for i, strategy in enumerate(loading_strategies):
-                    try:
-                        model = strategy()
-                        
-                        # Recompile if needed
-                        if not hasattr(model, 'optimizer') or model.optimizer is None:
-                            model.compile(
-                                optimizer='adam',
-                                loss='categorical_crossentropy',
-                                metrics=['accuracy']
-                            )
-                        
-                        logger.info(f"✅ H5 model loaded successfully with strategy {i+1}")
-                        logger.info(f"Model input shape: {model.input_shape}")
-                        logger.info(f"Model output shape: {model.output_shape}")
-                        return model
-                        
-                    except Exception as e:
-                        logger.warning(f"Strategy {i+1} failed: {e}")
-                        continue
-                        
-            except Exception as e:
-                logger.error(f"❌ Failed to load {model_path}: {e}")
-                continue
-    
-    logger.info("Using enhanced fallback classifier")
-    return EnhancedFruitClassifier(freshness_classes)
-
-def load_pytorch_model():
-    """Load PyTorch model with memory optimization"""
-    if not PYTORCH_AVAILABLE:
-        return None
-    
-    if PYTORCH_MODEL_PATH.exists():
+    @staticmethod
+    def process_image_from_link(link):
         try:
-            logger.info(f"Loading PyTorch model: {PYTORCH_MODEL_PATH}")
+            # ... (Logic from your first file to download image from URL)
+            opener = urllib.request.build_opener()
+            opener.addheaders = [('User-Agent', 'Mozilla/5.0')]
+            urllib.request.install_opener(opener)
+            with urllib.request.urlopen(link, timeout=15) as response:
+                image_bytes = response.read()
             
-            model = models.mobilenet_v2(weights=None)
-            num_ftrs = model.classifier[1].in_features
-            model.classifier = nn.Sequential(
-                nn.Dropout(p=0.2),
-                nn.Linear(num_ftrs, len(RIPENESS_CLASSES))
-            )
-            
-            state_dict = torch.load(str(PYTORCH_MODEL_PATH), map_location=device)
-            model.load_state_dict(state_dict)
-            model = model.to(device).eval()
-            
-            del state_dict
-            clear_memory()
-            
-            logger.info("✅ PyTorch model loaded successfully")
-            return model
+            is_valid, message = ImageProcessor.validate_image(image_bytes, is_file=False)
+            if not is_valid: return None, message
+
+            image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+            filename = f"{uuid.uuid4()}_url.jpg"
+            saved_path = os.path.join(config.IMAGES_DIR, filename)
+            image.save(saved_path, quality=95)
+            return saved_path, None
         except Exception as e:
-            logger.error(f"❌ Failed to load PyTorch model: {e}")
-    
-    return None
+            logger.error(f"Error processing image from URL: {e}")
+            return None, f"Lỗi xử lý ảnh từ URL: {str(e)}"
 
-def load_yolo_model_on_demand():
-    """Load YOLO model only when needed"""
-    global yolo_model
-    
-    if yolo_model is not None:
-        return yolo_model
-    
-    if not YOLO_AVAILABLE:
-        logger.warning("YOLO not available")
-        return None
-    
-    # Try smaller model first to save memory
-    model_paths = [
-        (YOLO_SMALL_PATH, "small YOLO"),
-        (YOLO_LARGE_PATH, "large YOLO")
-    ]
-    
-    for model_path, name in model_paths:
-        if model_path.exists():
-            try:
-                logger.info(f"Loading {name}: {model_path}")
-                yolo_model = YOLO(str(model_path))
-                logger.info(f"✅ {name} loaded successfully")
-                return yolo_model
-            except Exception as e:
-                logger.error(f"❌ Failed to load {name}: {e}")
-                clear_memory()
-    
-    # Try default small model
-    try:
-        logger.info("Loading default small YOLO...")
-        yolo_model = YOLO('yolov8n.pt')
-        logger.info("✅ Default small YOLO loaded")
-        return yolo_model
-    except Exception as e:
-        logger.error(f"❌ Failed to load default YOLO: {e}")
-        return None
+    @staticmethod
+    def save_base64_image(data_url):
+        try:
+            # ... (Logic from your first file to save base64 image)
+            header, encoded = data_url.split(",", 1)
+            binary_data = base64.b64decode(encoded)
+            is_valid, message = ImageProcessor.validate_image(binary_data, is_file=False)
+            if not is_valid: return None, message
 
-def initialize_models():
-    """Initialize models with memory optimization"""
-    global keras_model, pytorch_model
-    
-    logger.info("🚀 Initializing models (prioritizing .h5 format)...")
-    
-    # Load class indices first
-    freshness_classes = load_class_indices()
-    
-    # Check which files exist
-    logger.info("Checking model files:")
-    for name, path in [
-        ("H5 model (new)", H5_MODEL_PATHS[0]),
-        ("H5 model (old)", H5_MODEL_PATHS[1]),
-        ("Keras model", H5_MODEL_PATHS[2]),
-        ("Class indices (.json)", CLASS_INDICES_PATH),
-        ("PyTorch (.pth)", PYTORCH_MODEL_PATH),
-        ("YOLO small (.pt)", YOLO_SMALL_PATH),
-        ("YOLO large (.pt)", YOLO_LARGE_PATH)
-    ]:
-        if path.exists():
-            size_mb = path.stat().st_size / 1024 / 1024
-            logger.info(f"✅ {name}: {size_mb:.2f} MB")
-        else:
-            logger.warning(f"❌ {name}: NOT FOUND")
-    
-    # Load models sequentially
-    try:
-        keras_model = load_keras_model()
-        clear_memory()
-        
-        pytorch_model = load_pytorch_model()
-        clear_memory()
-        
-        # YOLO will be loaded on demand
-        logger.info("YOLO model will be loaded on demand")
-        
-    except Exception as e:
-        logger.error(f"Error during model initialization: {e}")
-        clear_memory()
-    
-    logger.info("✅ Model initialization completed")
-    logger.info(f"Models loaded: Keras={keras_model is not None}, "
-                f"PyTorch={pytorch_model is not None}")
+            image = Image.open(io.BytesIO(binary_data)).convert("RGB")
+            filename = f"{uuid.uuid4()}_camera.jpg"
+            saved_path = os.path.join(config.IMAGES_DIR, filename)
+            image.save(saved_path, quality=95)
+            return saved_path, None
+        except Exception as e:
+            logger.error(f"Error processing base64 image: {e}")
+            return None, f"Lỗi xử lý ảnh từ camera: {str(e)}"
 
-# ===== HELPER FUNCTIONS =====
-def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXT
+# ==================== FRUIT DETECTION & ANALYSIS ====================
+class FruitAnalyzer:
+    def __init__(self, model_manager_instance):
+        self.models = model_manager_instance.models
+        self.device = model_manager_instance.device
 
-def process_image_from_link(link):
-    try:
-        headers = {'User-Agent': 'Mozilla/5.0'}
-        response = requests.get(link, headers=headers, timeout=10)
-        response.raise_for_status()
-        
-        image = Image.open(io.BytesIO(response.content)).convert("RGB")
-        if image.size[0] > 1024 or image.size[1] > 1024:
-            image.thumbnail((1024, 1024), Image.Resampling.LANCZOS)
-        
-        filename = f"{uuid.uuid4()}.jpg"
-        saved_path = IMAGES_DIR / filename
-        image.save(str(saved_path), quality=85)
-        return str(saved_path), None
-    except Exception as e:
-        logger.error(f"Error processing image link: {e}")
-        return None, f"Lỗi xử lý ảnh: {str(e)}"
-
-def detect_with_yolo(image_path):
-    """YOLO detection with on-demand loading"""
-    try:
-        yolo = load_yolo_model_on_demand()
-        if yolo is None:
-            logger.warning("YOLO model not available")
+    def detect_fruit_with_yolo(self, image_path):
+        if self.models.get('yolo') is None:
+            logger.info("YOLO not loaded, skipping detection.")
             return None
-        
-        results = yolo(image_path, verbose=False)
-        best_box = None
-        max_area = 0
-        
-        for r in results:
-            if hasattr(r, 'boxes') and r.boxes is not None:
+        try:
+            logger.info("Running YOLO fruit detection...")
+            results = self.models['yolo'](image_path, verbose=False)
+            best_box = None
+            max_confidence = 0
+
+            for r in results:
                 for box in r.boxes:
-                    x1, y1, x2, y2 = box.xyxy[0]
-                    x, y, w, h = int(x1), int(y1), int(x2 - x1), int(y2 - y1)
-                    area = w * h
-                    if area > max_area:
-                        max_area = area
-                        best_box = (x, y, w, h)
-        
-        clear_memory()
-        return best_box
-        
-    except Exception as e:
-        logger.error(f"YOLO detection error: {e}")
-        clear_memory()
-        return None
+                    confidence = float(box.conf[0])
+                    if confidence > max_confidence and confidence > config.CONFIDENCE_THRESHOLD:
+                        x1, y1, x2, y2 = box.xyxy[0]
+                        best_box = {
+                            'bbox': (int(x1), int(y1), int(x2 - x1), int(y2 - y1)),
+                            'confidence': confidence
+                        }
+                        max_confidence = confidence
+            clear_memory()
+            return best_box
+        except Exception as e:
+            logger.error(f"YOLO detection error: {e}")
+            return None
 
-def draw_bounding_box(image_path, bbox):
-    """Draw bounding box with memory optimization"""
-    try:
-        image = Image.open(image_path).convert("RGB")
-        if bbox:
-            draw = ImageDraw.Draw(image)
-            x, y, w, h = bbox
-            draw.rectangle([x, y, x + w, y + h], outline="red", width=3)
-        
-        filename = f"{uuid.uuid4()}_detected.jpg"
-        save_path = IMAGES_DIR / filename
-        image.save(str(save_path), quality=85)
-        return filename
-    except Exception as e:
-        logger.error(f"Drawing error: {e}")
-        return None
+    def create_analysis_images(self, image_path, detection_result):
+        # This function is mostly from your first file, it's well-structured
+        try:
+            original_image = Image.open(image_path).convert("RGB")
+            images = {}
+            # Original image
+            original_filename = f"{uuid.uuid4()}_original.jpg"
+            original_image.save(os.path.join(config.IMAGES_DIR, original_filename))
+            images['original'] = original_filename
 
-def predict_freshness(image_path):
-    """Predict freshness with memory optimization"""
-    try:
-        if keras_model is None:
-            return ["Model không khả dụng"], [0]
+            # Bounding box image
+            bbox_image = original_image.copy()
+            draw = ImageDraw.Draw(bbox_image)
+            if detection_result and detection_result['bbox']:
+                x, y, w, h = detection_result['bbox']
+                draw.rectangle([x, y, x + w, y + h], outline="red", width=4)
+            bbox_filename = f"{uuid.uuid4()}_bbox.jpg"
+            bbox_image.save(os.path.join(config.IMAGES_DIR, bbox_filename))
+            images['bbox'] = bbox_filename
+
+            # Cropped image
+            if detection_result and detection_result['bbox']:
+                x, y, w, h = detection_result['bbox']
+                cropped_image = original_image.crop((x, y, x + w, y + h))
+            else: # Fallback to center crop
+                width, height = original_image.size
+                crop_size = min(width, height)
+                left, top = (width - crop_size)//2, (height - crop_size)//2
+                cropped_image = original_image.crop((left, top, left + crop_size, top + crop_size))
+
+            cropped_filename = f"{uuid.uuid4()}_cropped.jpg"
+            cropped_path = os.path.join(config.IMAGES_DIR, cropped_filename)
+            cropped_image.save(cropped_path)
+            images['cropped'] = cropped_filename
+            images['color'] = '' # Placeholder
+
+            return images
+        except Exception as e:
+            logger.error(f"Error creating analysis images: {e}")
+            return None
+
+    def predict_freshness_keras(self, image_path):
+        if self.models.get('keras') is None:
+            return {'classes': ["Lỗi model"], 'probabilities': [0], 'confidence': 0}
+        try:
+            logger.info("Running Keras freshness prediction...")
+            img = load_img(image_path, target_size=config.TARGET_SIZE)
+            img_array = img_to_array(img).reshape(1, *config.TARGET_SIZE, 3).astype('float32') / 255.0
+            
+            predictions = self.models['keras'].predict(img_array, verbose=0)[0]
+            top_indices = predictions.argsort()[::-1][:3]
+            
+            results = {
+                'classes': [model_manager.keras_class_names[i] for i in top_indices],
+                'probabilities': [float(predictions[i] * 100) for i in top_indices],
+                'confidence': float(predictions[top_indices[0]] * 100)
+            }
+            clear_memory()
+            return results
+        except Exception as e:
+            logger.error(f"Keras prediction error: {e}")
+            return {'classes': ["Lỗi dự đoán"], 'probabilities': [0], 'confidence': 0}
+
+    def predict_ripeness_pytorch(self, image_path):
+        if self.models.get('pytorch') is None:
+            return {'class': "Không có model", 'confidence': 0}
+        try:
+            logger.info("Running PyTorch ripeness prediction...")
+            transform = transforms.Compose([
+                transforms.Resize(256), transforms.CenterCrop(224),
+                transforms.ToTensor(), transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+            ])
+            image = Image.open(image_path).convert("RGB")
+            input_tensor = transform(image).unsqueeze(0).to(self.device)
+
+            with torch.no_grad():
+                output = self.models['pytorch'](input_tensor)
+                probabilities = torch.nn.functional.softmax(output[0], dim=0)
+                confidence, predicted_idx = torch.max(probabilities, 0)
+            
+            results = {
+                'class': config.RIPENESS_CLASSES[predicted_idx.item()],
+                'confidence': float(confidence.item() * 100)
+            }
+            clear_memory()
+            return results
+        except Exception as e:
+            logger.error(f"PyTorch prediction error: {e}")
+            return {'class': "Lỗi dự đoán", 'confidence': 0}
+    
+    def analyze_color_ripeness(self, image_path, detection_result):
+        if not CV2_AVAILABLE:
+            logger.warning("OpenCV not available, skipping color analysis.")
+            return {'ripeness': 'Không thể phân tích', 'confidence': 0, 'visualization_path': None}
+        try:
+            logger.info("Running Advanced Color Analysis...")
+            color_analyzer = AdvancedColorAnalyzer()
+            bbox = detection_result['bbox'] if detection_result else None
+            analysis_result = color_analyzer.analyze_image(image_path, bounding_box=bbox)
+            
+            return {
+                'ripeness': analysis_result['ripeness_state'],
+                'confidence': analysis_result['confidence'],
+                'visualization_path': analysis_result['visualization_path']
+            }
+        except Exception as e:
+            logger.error(f"Advanced Color analysis error: {e}")
+            return {'ripeness': 'Lỗi phân tích', 'confidence': 0, 'visualization_path': None}
+
+# ==================== RESULT AGGREGATOR ====================
+class ResultAggregator:
+    # This entire class is taken from your first file as it provides excellent, detailed logic.
+    @staticmethod
+    def extract_fruit_type(pytorch_result, keras_result):
+        pytorch_class = pytorch_result.get('class', '').lower()
+        keras_class = keras_result.get('classes', [''])[0].lower()
+        fruit_mapping = {'apple': 'Táo', 'banana': 'Chuối', 'orange': 'Cam'}
+        for eng, viet in fruit_mapping.items():
+            if eng in pytorch_class: return viet
+        for eng, viet in fruit_mapping.items():
+            if viet.lower() in keras_class: return viet
+        return "Không xác định"
+
+    @staticmethod
+    def extract_ripeness(pytorch_result, color_result):
+        pytorch_class = pytorch_result.get('class', '').lower()
+        color_ripeness = color_result.get('ripeness', 'không xác định').lower()
+        pytorch_conf = pytorch_result.get('confidence', 0)
         
-        if hasattr(keras_model, 'predict'):
-            # Real Keras model
-            img = load_img(image_path, target_size=(224, 224))
-            img = img_to_array(img).reshape(1, 224, 224, 3).astype('float32') / 255.0
-            preds = keras_model.predict(img, verbose=0)[0]
-        else:
-            # Enhanced classifier
-            img = Image.open(image_path).convert("RGB").resize((224, 224))
-            img_array = np.array(img)
-            preds = keras_model.predict(img_array)
+        # Priority to PyTorch model if confident
+        if pytorch_conf > 75:
+            if 'unripe' in pytorch_class: return "Xanh"
+            if 'ripe' in pytorch_class: return "Chín"
         
-        top = preds.argsort()[::-1][:3]
-        result = (
-            [freshness_classes[i] for i in top],
-            [(preds[i] * 100) for i in top]
+        # Fallback to color analysis
+        if 'xanh' in color_ripeness: return "Xanh"
+        if 'chín' in color_ripeness: return "Chín"
+
+        return "Không xác định"
+
+    @staticmethod
+    def extract_freshness(keras_result):
+        top_class = keras_result.get('classes', [''])[0].lower()
+        if 'tươi' in top_class: return 'Tươi'
+        if 'hỏng' in top_class: return 'Hỏng'
+        return "Không xác định"
+
+    @staticmethod
+    def calculate_overall_confidence(pytorch_result, keras_result, color_result):
+        weights = config.ENSEMBLE_WEIGHTS
+        overall_confidence = (
+                pytorch_result.get('confidence', 0) * weights['pytorch'] +
+                keras_result.get('confidence', 0) * weights['keras'] +
+                color_result.get('confidence', 0) * weights['color']
         )
-        
-        clear_memory()
-        return result
-        
-    except Exception as e:
-        logger.error(f"Freshness prediction error: {e}")
-        return ["Lỗi dự đoán"], [0]
+        return round(overall_confidence, 2)
 
-def predict_ripeness(image_path):
-    """Predict ripeness with memory optimization"""
-    try:
-        if pytorch_model is None:
-            return "Model không khả dụng", 0
-        
-        transform = transforms.Compose([
-            transforms.Resize(256),
-            transforms.CenterCrop(224),
-            transforms.ToTensor(),
-            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-        ])
-        
-        image = Image.open(image_path).convert("RGB")
-        input_tensor = transform(image).unsqueeze(0).to(device)
-        
-        with torch.no_grad():
-            output = pytorch_model(input_tensor)
-            probs = torch.nn.functional.softmax(output[0], dim=0)
-            conf, idx = torch.max(probs, 0)
-        
-        result = RIPENESS_CLASSES[idx.item()], conf.item() * 100
-        
-        del input_tensor, output, probs
-        clear_memory()
-        
-        return result
-        
-    except Exception as e:
-        logger.error(f"Ripeness prediction error: {e}")
-        return "Lỗi dự đoán", 0
+    @staticmethod
+    def generate_recommendation(ripeness, freshness, confidence):
+        if confidence < 40:
+            return "Độ tin cậy thấp. Vui lòng thử với ảnh rõ nét hơn."
+        if freshness == "Hỏng":
+            return "⚠️ Trái cây đã hỏng, không nên sử dụng."
+        if freshness == "Tươi":
+            if ripeness == "Chín":
+                return "✅ Trái cây tươi và chín, sẵn sàng để ăn."
+            elif ripeness == "Xanh":
+                return "🕐 Trái cây tươi nhưng chưa chín, cần để thêm thời gian."
+            else:
+                return "✅ Trái cây tươi, chất lượng tốt."
+        return "ℹ️ Cần kiểm tra thêm để đánh giá chính xác."
 
-# ===== FLASK ROUTES =====
-@app.route('/health')
-def health_check():
-    """Health check with model info"""
-    return {
-        "status": "healthy",
-        "models": {
-            "keras_model": keras_model is not None,
-            "keras_type": type(keras_model).__name__ if keras_model else "None",
-            "pytorch_model": pytorch_model is not None,
-            "yolo_available": YOLO_AVAILABLE
-        },
-        "model_files": {
-            "h5_new_exists": H5_MODEL_PATHS[0].exists(),
-            "h5_old_exists": H5_MODEL_PATHS[1].exists(),
-            "keras_exists": H5_MODEL_PATHS[2].exists(),
-            "class_indices_exists": CLASS_INDICES_PATH.exists(),
-            "pytorch_exists": PYTORCH_MODEL_PATH.exists()
-        },
-        "classes": {
-            "freshness_classes": freshness_classes,
-            "total_classes": len(freshness_classes)
-        },
-        "memory_optimized": True
-    }, 200
+    @staticmethod
+    def calculate_quality_score(ripeness, freshness, confidence):
+        base_score = confidence
+        if freshness == "Hỏng": base_score *= 0.2
+        elif freshness == "Tươi": base_score *= 1.0
+        else: base_score *= 0.6
+        if ripeness == "Chín": base_score *= 1.0
+        elif ripeness == "Xanh": base_score *= 0.8
+        else: base_score *= 0.7
+        return round(min(100, max(0, base_score)), 1)
+    
+    @staticmethod
+    def generate_final_result(pytorch_result, keras_result, color_result):
+        try:
+            fruit_type = ResultAggregator.extract_fruit_type(pytorch_result, keras_result)
+            ripeness = ResultAggregator.extract_ripeness(pytorch_result, color_result)
+            freshness = ResultAggregator.extract_freshness(keras_result)
+            overall_confidence = ResultAggregator.calculate_overall_confidence(pytorch_result, keras_result, color_result)
+            
+            final_description = f"{fruit_type} {ripeness} {freshness}".replace("Không xác định", "").strip()
+            if not final_description: final_description = "Không thể xác định"
 
+            return {
+                'description': final_description,
+                'fruit_type': fruit_type, 'ripeness': ripeness, 'freshness': freshness,
+                'overall_confidence': overall_confidence,
+                'recommendation': ResultAggregator.generate_recommendation(ripeness, freshness, overall_confidence),
+                'quality_score': ResultAggregator.calculate_quality_score(ripeness, freshness, overall_confidence)
+            }
+        except Exception as e:
+            logger.error(f"Error generating final result: {e}")
+            return {'description': "Lỗi xử lý kết quả", 'overall_confidence': 0}
+
+
+# Initialize analyzer
+fruit_analyzer = FruitAnalyzer(model_manager)
+
+# ==================== FLASK ROUTES ====================
 @app.route('/')
 def home():
     return render_template('index.html')
 
+@app.route('/health')
+def health_check():
+    """Health check endpoint from the second file for monitoring."""
+    return jsonify({
+        "status": "healthy",
+        "timestamp": datetime.utcnow().isoformat(),
+        "libraries": {
+            "tensorflow": TENSORFLOW_AVAILABLE,
+            "pytorch": PYTORCH_AVAILABLE,
+            "yolo": YOLO_AVAILABLE,
+            "opencv": CV2_AVAILABLE,
+        },
+        "models_loaded": {
+            "keras": "Fallback" if isinstance(model_manager.models.get('keras'), FallbackFruitClassifier) else (model_manager.models.get('keras') is not None),
+            "pytorch": model_manager.models.get('pytorch') is not None,
+            "yolo": model_manager.models.get('yolo') is not None,
+        },
+        "keras_classes": model_manager.keras_class_names
+    })
+
 @app.route('/success', methods=['POST'])
 def success():
+    # This route is a refined version combining the logic from both files.
     error = ''
     img_path = None
-    
     try:
-        # Process input
-        if 'link' in request.form and request.form['link'].strip():
-            img_path, error = process_image_from_link(request.form['link'].strip())
-        elif 'file' in request.files and request.files['file'].filename:
+        if 'link' in request.form and request.form.get('link'):
+            img_path, error = ImageProcessor.process_image_from_link(request.form.get('link').strip())
+        elif 'file' in request.files and request.files['file'].filename != '':
             file = request.files['file']
-            if allowed_file(file.filename):
+            if file.filename.rsplit('.', 1)[1].lower() in config.ALLOWED_EXT:
                 filename = f"{uuid.uuid4()}_{secure_filename(file.filename)}"
-                img_path = IMAGES_DIR / filename
-                file.save(str(img_path))
+                img_path = os.path.join(config.IMAGES_DIR, filename)
+                file.save(img_path)
             else:
-                error = "Định dạng ảnh không hợp lệ"
+                error = "Định dạng ảnh không hợp lệ."
+        elif 'camera_image' in request.form and request.form.get('camera_image'):
+            img_path, error = ImageProcessor.save_base64_image(request.form.get('camera_image'))
         else:
-            error = "Vui lòng tải ảnh hoặc nhập liên kết"
-        
+            error = "Vui lòng tải ảnh, nhập liên kết hoặc chụp ảnh."
+
         if img_path and not error:
-            img_path = str(img_path)
+            logger.info(f"Starting analysis for image: {os.path.basename(img_path)}")
             
-            # YOLO detection (on-demand)
-            bbox = detect_with_yolo(img_path)
-            detected_img = draw_bounding_box(img_path, bbox)
+            # --- Main Analysis Pipeline ---
+            detection_result = fruit_analyzer.detect_fruit_with_yolo(img_path)
+            analysis_images = fruit_analyzer.create_analysis_images(img_path, detection_result)
+            if not analysis_images:
+                error = "Lỗi tạo ảnh phân tích."
+                return render_template("index.html", error=error)
             
-            if not detected_img:
-                original_img = Image.open(img_path)
-                detected_img = f"{uuid.uuid4()}_original.jpg"
-                original_img.save(str(IMAGES_DIR / detected_img), quality=85)
+            cropped_path = os.path.join(config.IMAGES_DIR, analysis_images['cropped'])
             
-            # Predictions
-            freshness_classes_pred, freshness_probs = predict_freshness(img_path)
-            ripeness_pred, ripeness_conf = predict_ripeness(img_path)
+            keras_result = fruit_analyzer.predict_freshness_keras(cropped_path)
+            pytorch_result = fruit_analyzer.predict_ripeness_pytorch(cropped_path)
+            color_result = fruit_analyzer.analyze_color_ripeness(img_path, detection_result)
+
+            if color_result.get('visualization_path'):
+                analysis_images['color'] = color_result['visualization_path']
             
-            # Ensure enough data
-            while len(freshness_classes_pred) < 3:
-                freshness_classes_pred.append("N/A")
-                freshness_probs.append(0)
-            
-            predictions = {
-                "pytorch_prediction": ripeness_pred,
-                "pytorch_confidence": ripeness_conf,
-                "color_ripeness": "Phân tích màu sắc nâng cao",
-                "freshness_class1": freshness_classes_pred[0],
-                "freshness_prob1": freshness_probs[0],
-                "freshness_class2": freshness_classes_pred[1],
-                "freshness_prob2": freshness_probs[1],
-                "freshness_class3": freshness_classes_pred[2],
-                "freshness_prob3": freshness_probs[2],
+            final_result = ResultAggregator.generate_final_result(pytorch_result, keras_result, color_result)
+
+            predictions_for_template = {
+                "freshness_details": keras_result,
+                "color_ripeness": color_result.get('ripeness'),
+                "color_confidence": color_result.get('confidence'),
+                "pytorch_prediction": pytorch_result.get('class'),
+                "pytorch_confidence": pytorch_result.get('confidence'),
+                "final_result": final_result,
+                "detection_confidence": detection_result['confidence'] if detection_result else 0,
+                "yolo_detected": detection_result is not None
             }
             
-            clear_memory()
-            
             return render_template("success.html",
-                                   img=detected_img,
-                                   yolo_img=detected_img,
-                                   predictions=predictions)
-    
+                                   images=analysis_images,
+                                   predictions=predictions_for_template)
     except Exception as e:
-        logger.error(f"Error in success route: {e}")
-        error = f"Lỗi hệ thống: {str(e)}"
-        clear_memory()
+        logger.error(f"FATAL error in /success route: {e}", exc_info=True)
+        error = f"Đã xảy ra lỗi hệ thống nghiêm trọng: {str(e)}"
     
     return render_template("index.html", error=error)
 
-# ===== INITIALIZATION =====
-try:
-    initialize_models()
-    logger.info("🎉 H5-optimized application ready!")
-except Exception as e:
-    logger.error(f"Initialization error: {e}")
-    clear_memory()
+@app.errorhandler(404)
+def not_found_error(error):
+    return render_template('404.html'), 404
+
+@app.errorhandler(500)
+def internal_error(error):
+    logger.error(f"Internal server error (500): {error}")
+    return render_template('500.html'), 500
 
 if __name__ == '__main__':
-    PORT = int(os.environ.get('PORT', 10000))
-    app.run(host='0.0.0.0', port=PORT, debug=False)
+    logger.info("Starting Synthesized Fruit Analysis Application...")
+    port = int(os.environ.get("PORT", 5000))
+    app.run(debug=False, host='0.0.0.0', port=port)
