@@ -10,8 +10,7 @@ import torch.nn as nn
 from torchvision import models, transforms
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing.image import load_img, img_to_array
-
-from dominant_color import AdvancedColorAnalyzer, ColorAnalysisResult, RipenessState, color_of_image, name_main_color
+from dominant_color import AdvancedColorAnalyzer, ColorAnalysisResult, RipenessState
 from ultralytics import YOLO
 import cv2
 import base64
