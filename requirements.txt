@@ -21,7 +21,7 @@ torchvision==0.18.0
 
 #   * TensorFlow (includes Keras)
 tensorflow-cpu==2.19.0
-h5py==3.10.0
+h5py==3..0
 keras==3.10.0
 #   * YOLO / utilities
 ultralytics==8.0.196
