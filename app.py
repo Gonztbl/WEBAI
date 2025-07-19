@@ -493,8 +493,7 @@ class ResultAggregator:
 
         return "Không xác định"
 
-    @staticmethod
-    @staticmethod
+
     @staticmethod
     def extract_ripeness(pytorch_result, color_result):
         """Extracts ripeness using a more robust, hierarchical logic."""
