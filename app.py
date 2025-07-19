@@ -136,7 +136,9 @@ class ModelManager:
 
             # Load YOLO model
             logger.info("Loading YOLO detection model...")
-            self.models['yolo'] = YOLO(config.DETECTOR_MODEL_PATH).to("cpu")
+            self.models['yolo'] = YOLO(config.DETECTOR_MODEL_PATH)
+            yolo_model.to('cpu')
+
             # Load PyTorch model
             logger.info("Loading PyTorch ripeness model...")
             pytorch_model = models.mobilenet_v2(weights=None)
