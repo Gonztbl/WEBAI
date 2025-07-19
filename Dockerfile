@@ -58,7 +58,7 @@ EXPOSE 10000
 HEALTHCHECK --interval=30s --timeout=30s --start-period=60s --retries=3 \
     CMD curl -f http://localhost:10000/health || exit 1
 
-# Start command with memory optimization
+# FIXED: Use existing app.py instead of app_fixed_h5.py
 CMD ["gunicorn", "--bind", "0.0.0.0:10000", \
      "--workers", "1", \
      "--threads", "1", \
@@ -68,4 +68,4 @@ CMD ["gunicorn", "--bind", "0.0.0.0:10000", \
      "--preload", \
      "--access-logfile", "-", \
      "--error-logfile", "-", \
-     "app_fixed_h5:app"]
+     "app:app"]
