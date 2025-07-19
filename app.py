@@ -1,21 +1,23 @@
-# ===== PHẦN IMPORT ĐẦY ĐỦ =====
+# ===== PHẦN IMPORT ĐẦY ĐỦ VÀ SẠCH SẼ =====
 import os
 import io
 import uuid
 import urllib.request
 import logging
 from pathlib import Path
+
 from flask import Flask, render_template, request
 from werkzeug.utils import secure_filename
 from PIL import Image, ImageDraw
-# Thêm những dòng này vào phần import của Keras/TensorFlow
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Input, Conv2D, MaxPooling2D, Flatten, Dense
+
 import torch
 import torch.nn as nn
 from torchvision import models, transforms
-from tensorflow.keras.models import load_model
+
 from tensorflow.keras.preprocessing.image import load_img, img_to_array
+from tensorflow.keras.applications import MobileNetV2
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import GlobalAveragePooling2D, Dropout, Dense
 
 from dominant_color import color_of_image, name_main_color
 from ultralytics import YOLO
@@ -37,12 +39,8 @@ IMAGES_DIR = Path("/tmp/images")
 IMAGES_DIR.mkdir(parents=True, exist_ok=True)
 MODEL_DIR = BASE_DIR/'model'
 
-# Tạo thư mục nếu chưa tồn tại
-
-
-
-# Đường dẫn model
-CLASSIFIER_MODEL_PATH = MODEL_DIR/'fruit_state_classifier.h5'
+# Đường dẫn model (ĐÃ CẬP NHẬT ĐỂ SỬ DỤNG FILE WEIGHTS)
+CLASSIFIER_MODEL_PATH = MODEL_DIR/'fruit_state_classifier.weights.h5'
 DETECTOR_MODEL_PATH = MODEL_DIR/'yolov8l.pt'
 RIPENESS_MODEL_PATH = MODEL_DIR/'fruit_ripeness_model_pytorch.pth'
 
@@ -65,13 +63,7 @@ def verify_models():
             raise ValueError(f"Model file is empty: {model_path}")
         
         logger.info(f"Model verified: {model_path} ({model_path.stat().st_size/1024/1024:.2f} MB)")
-# ===== THÊM CÁC DÒNG NÀY VÀO PHẦN IMPORT Ở ĐẦU FILE =====
-from tensorflow.keras.applications import MobileNetV2
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import GlobalAveragePooling2D, Dropout, Dense
 
-
-# ===== THAY THẾ TOÀN BỘ HÀM load_models() CŨ BẰNG HÀM NÀY =====
 def load_models():
     """Load các model với kiến trúc được xây dựng lại và tải trọng số"""
     loaded_models = {}
@@ -87,14 +79,13 @@ def load_models():
         architecture = Sequential([
             base_model,
             GlobalAveragePooling2D(),
-            Dropout(0.2), # Dựa trên kiến trúc điển hình, nếu bạn dùng giá trị khác, hãy thay đổi
+            Dropout(0.2),
             Dense(128, activation='relu'),
-            Dense(len(FRESHNESS_CLASSES), activation='softmax') # Đầu ra 6 lớp
+            Dense(len(FRESHNESS_CLASSES), activation='softmax')
         ])
         
         # 3. Tải trọng số đã lưu vào kiến trúc mới
-        weights_path = str(MODEL_DIR / 'fruit_state_classifier.weights.h5')
-        architecture.load_weights(weights_path)
+        architecture.load_weights(str(CLASSIFIER_MODEL_PATH))
         
         loaded_models['classifier'] = architecture
         logger.info("Keras model built and weights loaded successfully")
@@ -246,8 +237,6 @@ def home():
     return render_template('index.html')
 
 @app.route('/success', methods=['POST'])
-# THAY THẾ TOÀN BỘ HÀM SUCCESS BẰNG PHIÊN BẢN NÀY
-@app.route('/success', methods=['POST'])
 def success():
     error = ''
     img_path = None
@@ -281,16 +270,11 @@ def success():
             color_ripeness = name_main_color(dominant_colors)
             ripeness_pred, ripeness_conf = predict_ripeness_pytorch(img_path)
 
-            # ===== PHẦN SỬA LỖI BẮT ĐẦU TẠI ĐÂY =====
             # Chuẩn bị một dictionary phẳng để template dễ dàng truy cập
             predictions_for_template = {
-                # Đổi tên biến để khớp với template
                 "pytorch_prediction": ripeness_pred,
                 "pytorch_confidence": ripeness_conf,
-                
                 "color_ripeness": color_ripeness,
-                
-                # Tách danh sách freshness thành các biến riêng lẻ
                 "freshness_class1": freshness_classes[0],
                 "freshness_prob1": freshness_probs[0],
                 "freshness_class2": freshness_classes[1],
@@ -298,18 +282,18 @@ def success():
                 "freshness_class3": freshness_classes[2],
                 "freshness_prob3": freshness_probs[2],
             }
-            # ===== KẾT THÚC PHẦN SỬA LỖI =====
 
             return render_template("success.html",
                 img=kmean_img,
                 yolo_img=yolo_img,
-                predictions=predictions_for_template) # Sử dụng dictionary đã chuẩn bị
+                predictions=predictions_for_template)
     
     except Exception as e:
         logger.error(f"Error in /success: {e}", exc_info=True)
         error = f"Lỗi hệ thống: {str(e)}"
     
     return render_template("index.html", error=error)
+
 if __name__ == '__main__':
     PORT = int(os.environ.get('PORT', 10000))
-    app.run(host='0.0.0.0', port=PORT, debug=False)
+    app.run(host='0.0.0.0', port=PORT, debug=False)```
