@@ -35,10 +35,10 @@ RUN mkdir -p model && \
     wget -q "${MODEL_URL}/fruit_ripeness_model_pytorch.pth" && \
     \
     echo "Verifying all checksums..." && \
-    # Create the checksum file with proper Unix line endings inside the container
-    echo "8ebe13c100c32f99911eb341e6b6278832a8848c909675239a587428803a6b5a3  fruit_state_classifier.keras" > checksums.txt && \
+    # Create the checksum file with correct hashes from local machine
+    echo "8ebe13c100c32f99911eb341e6b62f52c3f68974ab41915a15d1c6418869ce9a  fruit_state_classifier.keras" > checksums.txt && \
     echo "18218ea4798da042d9862e6029ca9531adbd40ace19b6c9a75e2e28f1adf30cc  yolov8l.pt" >> checksums.txt && \
-    echo "48bf9333f4f07af2d02e3965f797f53f06b6b553e414c99736e4f165a6e87b7a6  fruit_ripeness_model_pytorch.pth" >> checksums.txt && \
+    echo "48bf9333f4f07af2d02e3965f797fa56fa429d46b34d29d24e95dc925582e63d  fruit_ripeness_model_pytorch.pth" >> checksums.txt && \
     \
     # Verify against the newly created file
     sha256sum -c --strict checksums.txt
