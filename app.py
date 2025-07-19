@@ -59,7 +59,7 @@ IMAGES_DIR = BASE_DIR / "static" / "images"
 IMAGES_DIR.mkdir(parents=True, exist_ok=True)
 MODEL_DIR = BASE_DIR / 'model'
 
-# ===== SIMPLE MODEL PATHS - CHỈ 3 FILES =====
+# ===== MODEL PATHS =====
 KERAS_MODEL_PATH = MODEL_DIR / 'fruit_state_classifier_new.h5'
 PYTORCH_MODEL_PATH = MODEL_DIR / 'fruit_ripeness_model_pytorch.pth'
 YOLO_MODEL_PATH = MODEL_DIR / 'yolov8l.pt'
@@ -82,16 +82,24 @@ class SimpleFruitClassifier:
     def predict(self, image_array):
         try:
             mean_brightness = np.mean(image_array)
-            if mean_brightness > 150:
-                return np.array([0.4, 0.3, 0.2, 0.05, 0.03, 0.02])
-            else:
-                return np.array([0.1, 0.1, 0.1, 0.3, 0.2, 0.2])
+            color_variance = np.var(image_array)
+            
+            # Enhanced logic based on image characteristics
+            if mean_brightness > 150:  # Bright image - likely fresh
+                if color_variance > 1000:  # High color variance - diverse colors
+                    return np.array([0.45, 0.25, 0.20, 0.05, 0.03, 0.02])  # Fresh fruits
+                else:
+                    return np.array([0.35, 0.35, 0.20, 0.05, 0.03, 0.02])
+            elif mean_brightness > 100:  # Medium brightness
+                return np.array([0.25, 0.25, 0.25, 0.10, 0.10, 0.05])
+            else:  # Dark image - possibly spoiled
+                return np.array([0.05, 0.05, 0.05, 0.35, 0.30, 0.20])  # Spoiled fruits
         except:
             return np.array([1/6] * 6)
 
-# ===== MODEL LOADING - SIMPLE & CLEAN =====
+# ===== MODEL LOADING WITH BETTER ERROR HANDLING =====
 def load_keras_model():
-    """Load Keras model (.h5 file)"""
+    """Load Keras model with better error handling"""
     if not TENSORFLOW_AVAILABLE:
         logger.warning("TensorFlow not available")
         return SimpleFruitClassifier()
@@ -99,19 +107,44 @@ def load_keras_model():
     if KERAS_MODEL_PATH.exists():
         try:
             logger.info(f"Loading Keras model: {KERAS_MODEL_PATH}")
-            model = load_model(str(KERAS_MODEL_PATH))
+            
+            # Try loading with compile=False to avoid optimizer issues
+            model = load_model(str(KERAS_MODEL_PATH), compile=False)
+            
+            # Recompile the model
+            model.compile(
+                optimizer='adam',
+                loss='categorical_crossentropy',
+                metrics=['accuracy']
+            )
+            
             logger.info("✅ Keras model loaded successfully")
             return model
+            
         except Exception as e:
             logger.error(f"❌ Failed to load Keras model: {e}")
+            
+            # Try with custom_objects to handle unknown layers
+            try:
+                logger.info("Trying to load with custom_objects...")
+                model = load_model(str(KERAS_MODEL_PATH), compile=False, custom_objects={})
+                model.compile(
+                    optimizer='adam',
+                    loss='categorical_crossentropy',
+                    metrics=['accuracy']
+                )
+                logger.info("✅ Keras model loaded with custom_objects")
+                return model
+            except Exception as e2:
+                logger.error(f"❌ Failed with custom_objects: {e2}")
     else:
         logger.warning(f"❌ Keras model not found: {KERAS_MODEL_PATH}")
     
-    logger.info("Using simple fallback classifier")
+    logger.info("Using enhanced simple fallback classifier")
     return SimpleFruitClassifier()
 
 def load_pytorch_model():
-    """Load PyTorch model (.pth file)"""
+    """Load PyTorch model"""
     if not PYTORCH_AVAILABLE:
         logger.warning("PyTorch not available")
         return None
@@ -141,7 +174,7 @@ def load_pytorch_model():
     return None
 
 def load_yolo_model():
-    """Load YOLO model (.pt file)"""
+    """Load YOLO model"""
     if not YOLO_AVAILABLE:
         logger.warning("YOLO not available")
         return None
@@ -258,7 +291,7 @@ def draw_bounding_box(image_path, bbox):
         return None
 
 def predict_freshness(image_path):
-    """Predict fruit freshness using Keras model"""
+    """Predict fruit freshness"""
     try:
         if keras_model is None:
             return ["Model không khả dụng"], [0]
@@ -325,6 +358,11 @@ def health_check():
             "pytorch_pth_exists": PYTORCH_MODEL_PATH.exists(),
             "yolo_pt_exists": YOLO_MODEL_PATH.exists()
         },
+        "model_types": {
+            "keras_type": type(keras_model).__name__ if keras_model else "None",
+            "pytorch_type": type(pytorch_model).__name__ if pytorch_model else "None",
+            "yolo_type": type(yolo_model).__name__ if yolo_model else "None"
+        },
         "features": {
             "tensorflow": TENSORFLOW_AVAILABLE,
             "pytorch": PYTORCH_AVAILABLE,
@@ -381,7 +419,7 @@ def success():
             predictions = {
                 "pytorch_prediction": ripeness_pred,
                 "pytorch_confidence": ripeness_conf,
-                "color_ripeness": "Phân tích màu sắc",
+                "color_ripeness": "Phân tích màu sắc cơ bản",
                 "freshness_class1": freshness_classes[0],
                 "freshness_prob1": freshness_probs[0],
                 "freshness_class2": freshness_classes[1],
