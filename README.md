@@ -1,5 +1,4 @@
 # Hệ thống Nhận diện và Phân loại Trái cây theo Mức độ Xanh-Chín
-*Báo cáo môn học Xử lý Ảnh số và Thị giác Máy tính - HaUI*
 
 Dự án này xây dựng một hệ thống hoàn chỉnh sử dụng các mô hình Deep Learning để tự động nhận diện loại trái cây (táo, chuối, cam), phân loại tình trạng (tươi/hỏng) và xác định mức độ chín (xanh/chín) từ hình ảnh.
 
@@ -121,11 +120,10 @@ Dự án được thực hiện bởi **Nhóm 13**:
 
 | STT | Họ và tên         | MSSV       |
 |:---:|:------------------|:-----------|
-| 1   | Hoàng Xuân Hiền   | 2022601670 |
-| 2   | Phạm Lê Tú An     | 2022602250 |
-| 3   | Trịnh Bảo Long    | 2022601773 |
-| 4   | Nguyễn Dũng       | 2022602499 |
-| 5   | Đỗ Trọng Thích    | 2021604318 |
+| 1   | Trịnh Bảo Long  | 2022601773|
+| 2   | Hoàng Xuân Hiền | 2022601670  |
+| 3   | Trần Văn Toán   | |
+
 
 **Giảng viên hướng dẫn:** TS. Lê Thị Hồng Lan
 
