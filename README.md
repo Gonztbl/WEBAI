@@ -26,6 +26,10 @@ Dự án này xây dựng một hệ thống hoàn chỉnh sử dụng các mô 
 -   **Giao diện Web trực quan:** Xây dựng bằng **Flask**, cho phép người dùng dễ dàng tải ảnh lên hoặc dán URL để nhận kết quả phân tích tức thì.
 
 ## 📸 Demo
+<img width="1897" height="878" alt="Screenshot 2025-08-09 204653" src="https://github.com/user-attachments/assets/f3c88e7c-bcaa-4d52-a722-e17aee4aa36e" />
+<img width="514" height="289" alt="Screenshot 2025-08-09 204748" src="https://github.com/user-attachments/assets/34c76b09-f894-4fda-9865-8555b9c82472" />
+<img width="489" height="376" alt="Screenshot 2025-08-09 204753" src="https://github.com/user-attachments/assets/b6d9d52e-8b82-4115-9899-8077347a8fcb" />
+<img width="501" height="179" alt="Screenshot 2025-08-09 204758" src="https://github.com/user-attachments/assets/beee6b43-9142-4903-9a05-b952b24fee97" />
 
 
 
