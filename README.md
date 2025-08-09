@@ -115,17 +115,6 @@ Hệ thống hoạt động theo một pipeline xử lý thông minh và hiệu 
     -   **Validation Accuracy:** ~95-96%
     -   Mô hình học tốt, ổn định và không có dấu hiệu overfitting.
 
-## 👨‍💻 Thành viên nhóm
-Dự án được thực hiện bởi **Nhóm 13**:
-
-| STT | Họ và tên         | MSSV       |
-|:---:|:------------------|:-----------|
-| 1   | Trịnh Bảo Long  | 2022601773|
-| 2   | Hoàng Xuân Hiền | 2022601670  |
-| 3   | Trần Văn Toán   | |
-
-
-**Giảng viên hướng dẫn:** TS. Lê Thị Hồng Lan
 
 ## 📄 Giấy phép
 
