@@ -47,11 +47,6 @@ Hệ thống hoạt động theo một pipeline xử lý thông minh và hiệu 
     -   Một module phân tích màu sắc dựa trên không gian màu HSV sẽ tìm ra màu chủ đạo.
 5.  **Tổng hợp & Hiển thị:** Tất cả kết quả (bounding box, nhãn loại, nhãn trạng thái, nhãn độ chín, màu chủ đạo) được tổng hợp và trả về giao diện web một cách trực quan.
 
-<p align="center">
-  <img src="https://i.imgur.com/Wp7P0iQ.png" alt="Sơ đồ kiến trúc" width="600"/>
-  <br>
-  <em>Sơ đồ luồng xử lý của hệ thống</em>
-</p>
 
 ## 🛠️ Công nghệ sử dụng
 
